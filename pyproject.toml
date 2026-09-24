@@ -7,3 +7,7 @@ name = "fridayv2"
 version = "0.1.0"
 description = "A general-purpose computer-use agent."
 requires-python = ">=3.11"
+
+[project.scripts]
+# Start the terminal interface when the user runs "friday".
+friday = "fridayv2.cli:main"
