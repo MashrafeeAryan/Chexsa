@@ -3,11 +3,11 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fridayv2"
+name = "chexsa"
 version = "0.1.0"
-description = "A general-purpose computer-use agent."
+description = "A personal computer-use AI agent."
 requires-python = ">=3.11"
 
 [project.scripts]
-# Start the terminal interface when the user runs "friday".
-friday = "fridayv2.cli:main"
+# Let users start the terminal interface with a simple "chexsa" command.
+chexsa = "chexsa.cli:main"
