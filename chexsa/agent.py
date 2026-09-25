@@ -1,95 +1,48 @@
 """Core agent controller for Chexsa."""
 
-from dataclasses import dataclass, field
-from typing import Any, Callable
-
-
-@dataclass
-class AgentDecision:
-    """Describe what the LLM wants Chexsa to do next."""
-
-    action: str | None = None
-    arguments: dict[str, Any] = field(default_factory=dict)
-    done: bool = False
-    response: str = ""
-
-
-@dataclass
-class StepResult:
-    """Store what happened after one attempted action."""
-
-    action: str
-    arguments: dict[str, Any]
-    result: Any = None
-    verified: bool = False
-    error: str | None = None
-
-
-ObserveFn = Callable[[], Any]
-DecideFn = Callable[[str, Any, list[StepResult]], AgentDecision]
-ExecuteFn = Callable[[str, dict[str, Any]], Any]
-VerifyFn = Callable[[str, dict[str, Any], Any], bool]
-
 
 class Agent:
-    """Run Chexsa's observe, decide, act, and verify loop."""
+    """Connect the user request, browser state, LLM, and Playwright."""
 
     def __init__(
         self,
-        observe: ObserveFn | None = None,
-        decide: DecideFn | None = None,
-        execute: ExecuteFn | None = None,
-        verify: VerifyFn | None = None,
+        browser_state=None,
+        llm=None,
+        playwright=None,
         max_steps: int = 20,
     ) -> None:
-        self.observe = observe
-        self.decide = decide
-        self.execute = execute
-        self.verify = verify
+        self.browser_state = browser_state
+        self.llm = llm
+        self.playwright = playwright
         self.max_steps = max_steps
 
     def run(self, request: str) -> str:
-        """Keep working on a request until it finishes or reaches a safe stop."""
-        if not self._is_configured():
+        """Run the browser agent until the LLM says the task is finished."""
+        if not all((self.browser_state, self.llm, self.playwright)):
             return "Agent controller is ready, but browser tools are not connected yet."
 
-        history: list[StepResult] = []
-
-        # Each loop starts from fresh state so Chexsa reacts to what actually happened.
         for _ in range(self.max_steps):
-            state = self.observe()
-            decision = self.decide(request, state, history)
+            # 1. Get the current browser state: URL + ARIA + DOM.
+            state = self.browser_state.get_state()
 
-            if decision.done:
-                return decision.response or "Task complete."
-
-            if not decision.action:
-                return "Chexsa could not choose a next action."
-
-            step = self._run_step(decision)
-            history.append(step)
-
-        return f"Stopped after {self.max_steps} steps before the task was complete."
-
-    def _run_step(self, decision: AgentDecision) -> StepResult:
-        """Execute one action and record whether it worked."""
-        try:
-            result = self.execute(decision.action, decision.arguments)
-            verified = self.verify(decision.action, decision.arguments, result)
-            return StepResult(
-                action=decision.action,
-                arguments=decision.arguments,
-                result=result,
-                verified=verified,
-            )
-        except Exception as error:
-            # Tool failures become task history so the next LLM step can recover.
-            return StepResult(
-                action=decision.action,
-                arguments=decision.arguments,
-                error=str(error),
+            # 2. Give the user request and browser state to the LLM.
+            decision = self.llm.decide(
+                request=request,
+                url=state["url"],
+                aria=state["aria"],
+                dom=state["dom"],
             )
 
-    def _is_configured(self) -> bool:
-        """Check that every part of the control loop has been connected."""
-        return all((self.observe, self.decide, self.execute, self.verify))
+            # 3. Stop when the LLM says the task is complete.
+            if decision["action"] == "done":
+                return decision.get("response", "Task complete.")
+
+            # 4. Send the LLM's action to Playwright.
+            self.playwright.execute(
+                action=decision["action"],
+                arguments=decision.get("arguments", {}),
+            )
+
+            # 5. Loop again and fetch the new browser state.
+
+        return "Stopped because the maximum number of steps was reached."
