@@ -1,10 +1,15 @@
 """Terminal interface for Chexsa."""
 
+from chexsa.agent import Agent
+
 
 def main() -> None:
     """Run the interactive Chexsa terminal session."""
     print("Chexsa")
     print("Type 'exit' or 'quit' to close Chexsa.\n")
+
+    # Create one agent for the whole session so future state can live here.
+    agent = Agent()
 
     # Keep the terminal session alive until the user chooses to leave.
     while True:
@@ -14,7 +19,7 @@ def main() -> None:
             print("\nGoodbye.")
             break
 
-        # Empty messages are ignored instead of becoming agent requests later.
+        # Empty messages should not become agent requests.
         if not user_input:
             continue
 
@@ -22,8 +27,8 @@ def main() -> None:
             print("Goodbye.")
             break
 
-        # Temporary behavior until requests are passed to the agent controller.
-        print(f"Chexsa > Received: {user_input}")
+        response = agent.run(user_input)
+        print(f"Chexsa > {response}")
 
 
 if __name__ == "__main__":
