@@ -1,9 +1,10 @@
 """Uses Gemini to choose Chexsa's next browser action.
 It reads the user's request and browser state, then returns one AgentDecision.
-Gemini is temporary so we can replace it with a local model later."""
+Temporary timers help us measure Gemini response time."""
 
 import json
 import os
+from time import perf_counter
 
 from dotenv import load_dotenv
 from google import genai
@@ -72,11 +73,13 @@ class GeminiLLM:
         state: BrowserSnapshot,
         history: list[StepResult],
     ) -> AgentDecision:
-        """Choose one next action for Chexsa."""
+        """Choose one next action and time the Gemini request."""
 
         prompt = self._build_prompt(request, state, history)
 
-        # Ask Gemini for JSON that matches our decision format.
+        # Measure only the time spent waiting for Gemini.
+        start = perf_counter()
+
         interaction = self.client.interactions.create(
             model=self.model,
             input=prompt,
@@ -86,6 +89,8 @@ class GeminiLLM:
                 "schema": DECISION_SCHEMA,
             },
         )
+
+        print(f"[TIMER] Gemini response: {perf_counter() - start:.2f}s")
 
         if not interaction.output_text:
             raise RuntimeError("Gemini returned an empty response.")
