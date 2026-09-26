@@ -42,13 +42,11 @@ DECISION_SCHEMA = {
                 "selector": {"type": "string"},
                 "file_path": {"type": "string"},
             },
-            "additionalProperties": False,
         },
         "done": {"type": "boolean"},
         "response": {"type": "string"},
     },
     "required": ["action", "arguments", "done", "response"],
-    "additionalProperties": False,
 }
 
 
@@ -56,7 +54,7 @@ class GeminiLLM:
     """Ask Gemini what browser action Chexsa should take next."""
 
     def __init__(self, model: str = "gemini-3.8-flash") -> None:
-        # Read the private Gemini key that was loaded from .env.
+        # Read the Gemini key loaded from .env.
         api_key = os.getenv("GEMINI_API_KEY")
 
         if not api_key:
@@ -64,7 +62,7 @@ class GeminiLLM:
                 "GEMINI_API_KEY was not found in your .env file."
             )
 
-        # Give the API key to the Gemini client.
+        # Create the Gemini connection once when Chexsa starts.
         self.client = genai.Client(api_key=api_key)
         self.model = model
 
@@ -78,22 +76,24 @@ class GeminiLLM:
 
         prompt = self._build_prompt(request, state, history)
 
-        # Ask Gemini to return JSON matching our decision format.
-        response = self.client.models.generate_content(
+        # Ask Gemini for JSON that matches our decision format.
+        interaction = self.client.interactions.create(
             model=self.model,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "response_schema": DECISION_SCHEMA,
+            input=prompt,
+            response_format={
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": DECISION_SCHEMA,
             },
         )
 
-        if not response.text:
+        if not interaction.output_text:
             raise RuntimeError("Gemini returned an empty response.")
 
-        decision = json.loads(response.text)
+        # Turn Gemini's JSON text into normal Python data.
+        decision = json.loads(interaction.output_text)
 
-        # "none" means Chexsa does not need another browser action.
+        # "none" means there is no browser action left to perform.
         action = decision["action"]
         if action == "none":
             action = None
