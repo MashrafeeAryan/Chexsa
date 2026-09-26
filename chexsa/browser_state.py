@@ -42,7 +42,7 @@ class BrowserState:
     def observe(self) -> BrowserSnapshot:
         """Return the state of the current browser page."""
 
-        page = self._get_page()
+        page = self.get_page()
 
         return BrowserSnapshot(
             url=page.url,
@@ -51,7 +51,7 @@ class BrowserState:
             text=self._get_visible_text(page),
         )
 
-    def _get_page(self) -> Page:
+    def get_page(self) -> Page:
         """Get the most recently opened page from Chrome."""
 
         if self.browser is None:
