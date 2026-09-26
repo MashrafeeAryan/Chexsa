@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 # Libraries Chexsa needs to run.
 dependencies = [
     "google-genai",
+    "openai",
     "playwright",
     "python-dotenv",
 ]

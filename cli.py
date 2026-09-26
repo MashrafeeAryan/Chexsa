@@ -5,7 +5,7 @@ This is the main file users interact with from the terminal."""
 from agent import Agent
 from browser_actions import BrowserActions
 from browser_state import BrowserState
-from llm import GeminiLLM
+from llm import LLM
 
 
 def main() -> None:
@@ -21,8 +21,8 @@ def main() -> None:
     # BrowserActions controls the same Chrome page BrowserState reads.
     actions = BrowserActions(browser.get_page)
 
-    # Gemini decides which browser action should happen next.
-    llm = GeminiLLM()
+    # The selected LLM decides which browser action happens next.
+    llm = LLM()
 
     # Connect the browser, LLM, and actions to the main agent loop.
     agent = Agent(
