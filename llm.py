@@ -18,6 +18,29 @@ from browser_state import BrowserSnapshot
 load_dotenv()
 
 
+# Define the decision format every model should return.
+DECISION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {
+            "type": "string",
+            "enum": [
+                "navigate",
+                "click",
+                "type",
+                "scroll",
+                "upload_file",
+                "none",
+            ],
+        },
+        "arguments": {"type": "object"},
+        "done": {"type": "boolean"},
+        "response": {"type": "string"},
+    },
+    "required": ["action", "arguments", "done", "response"],
+}
+
+
 class LLM:
     """Use the selected model provider to make Chexsa decisions."""
 
@@ -96,6 +119,11 @@ class LLM:
         interaction = self.client.interactions.create(
             model=self.model,
             input=prompt,
+            response_format={
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": DECISION_SCHEMA,
+            },
         )
 
         if not interaction.output_text:
@@ -114,6 +142,7 @@ class LLM:
                     "content": prompt,
                 }
             ],
+            response_format={"type": "json_object"},
         )
 
         text = response.choices[0].message.content
