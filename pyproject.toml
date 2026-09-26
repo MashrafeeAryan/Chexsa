@@ -8,9 +8,22 @@ version = "0.1.0"
 description = "A personal computer-use AI agent."
 requires-python = ">=3.11"
 
+# Libraries Chexsa needs to run.
+dependencies = [
+    "google-genai",
+    "playwright",
+]
+
 [project.scripts]
-# Let users start the terminal interface with a simple "chexsa" command.
+# Start Chexsa from the terminal with the "chexsa" command.
 chexsa = "cli:main"
 
 [tool.setuptools]
-py-modules = ["agent", "browser_state", "browser_actions", "cli"]
+# Python files that are part of Chexsa.
+py-modules = [
+    "agent",
+    "browser_state",
+    "browser_actions",
+    "llm",
+    "cli",
+]
