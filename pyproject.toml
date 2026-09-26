@@ -10,4 +10,7 @@ requires-python = ">=3.11"
 
 [project.scripts]
 # Let users start the terminal interface with a simple "chexsa" command.
-chexsa = "chexsa.cli:main"
+chexsa = "cli:main"
+
+[tool.setuptools]
+py-modules = ["agent", "browser_state", "browser_actions", "cli"]

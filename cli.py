@@ -1,6 +1,6 @@
 """Terminal interface for Chexsa."""
 
-from chexsa.agent import Agent
+from agent import Agent
 
 
 def main() -> None:
