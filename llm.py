@@ -3,11 +3,17 @@ It reads the user's request and browser state, then returns one AgentDecision.
 Gemini is temporary so we can replace it with a local model later."""
 
 import json
+import os
 
+from dotenv import load_dotenv
 from google import genai
 
 from agent import AgentDecision, StepResult
 from browser_state import BrowserSnapshot
+
+
+# Load values such as GEMINI_API_KEY from the local .env file.
+load_dotenv()
 
 
 # Tell Gemini exactly what shape its answer should have.
@@ -50,8 +56,16 @@ class GeminiLLM:
     """Ask Gemini what browser action Chexsa should take next."""
 
     def __init__(self, model: str = "gemini-3.8-flash") -> None:
-        # Gemini reads GEMINI_API_KEY from your environment.
-        self.client = genai.Client()
+        # Read the private Gemini key that was loaded from .env.
+        api_key = os.getenv("GEMINI_API_KEY")
+
+        if not api_key:
+            raise RuntimeError(
+                "GEMINI_API_KEY was not found in your .env file."
+            )
+
+        # Give the API key to the Gemini client.
+        self.client = genai.Client(api_key=api_key)
         self.model = model
 
     def decide(
