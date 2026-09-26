@@ -1,0 +1,2 @@
+# Keep secret environment variables out of GitHub.
+.env
