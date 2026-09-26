@@ -1,6 +1,9 @@
-"""Read the current state of Chrome for Chexsa."""
+"""Reads the current Chrome page for Chexsa.
+It collects the URL, title, ARIA structure, and visible text.
+Temporary timers help us find slow browser-reading steps."""
 
 from dataclasses import dataclass
+from time import perf_counter
 
 from playwright.sync_api import Browser, Page, Playwright, sync_playwright
 
@@ -34,21 +37,36 @@ class BrowserState:
 
         self.playwright = sync_playwright().start()
 
-        # CDP lets us control the real Chrome session instead of opening a new one.
+        # CDP connects Chexsa to the real Chrome session.
         self.browser = self.playwright.chromium.connect_over_cdp(
             self.cdp_url
         )
 
     def observe(self) -> BrowserSnapshot:
-        """Return the state of the current browser page."""
+        """Read the current page and print how long each part takes."""
 
+        total_start = perf_counter()
         page = self.get_page()
+
+        # Measure how long reading the page title takes.
+        title_start = perf_counter()
+        title = page.title()
+        print(f"[TIMER] Browser title: {perf_counter() - title_start:.2f}s")
+
+        # Measure the two larger page-reading operations.
+        aria = self._get_aria(page)
+        text = self._get_visible_text(page)
+
+        print(
+            f"[TIMER] Browser observe total: "
+            f"{perf_counter() - total_start:.2f}s"
+        )
 
         return BrowserSnapshot(
             url=page.url,
-            title=page.title(),
-            aria=self._get_aria(page),
-            text=self._get_visible_text(page),
+            title=title,
+            aria=aria,
+            text=text,
         )
 
     def get_page(self) -> Page:
@@ -69,27 +87,35 @@ class BrowserState:
         if not pages:
             raise RuntimeError("Chrome has no open pages.")
 
-        # For now we use the newest tab.
+        # For now Chexsa uses the newest tab.
         return pages[-1]
 
     def _get_aria(self, page: Page) -> str:
-        """Read the page in a form that describes buttons, links, inputs, etc."""
+        """Read buttons, links, inputs, and other accessible page elements."""
+
+        start = perf_counter()
 
         try:
-            return page.locator("body").aria_snapshot()
+            aria = page.locator("body").aria_snapshot()
         except Exception:
-            # Some pages may not expose useful accessibility information.
-            return ""
+            aria = ""
+
+        print(f"[TIMER] Browser ARIA: {perf_counter() - start:.2f}s")
+        return aria
 
     def _get_visible_text(self, page: Page) -> str:
-        """Get readable page text as a fallback for the accessibility tree."""
+        """Read visible page text and limit how much goes to the LLM."""
+
+        start = perf_counter()
 
         try:
             text = page.locator("body").inner_text()
         except Exception:
-            return ""
+            text = ""
 
-        # Huge webpages would waste LLM context, so keep only part of the text.
+        print(f"[TIMER] Browser text: {perf_counter() - start:.2f}s")
+
+        # Limit large pages so they do not waste LLM context.
         return text[: self.max_text_chars]
 
     def close(self) -> None:
