@@ -27,6 +27,11 @@ class BrowserActions:
             "navigate": self.navigate,
             "click": self.click,
             "type": self.type_text,
+            "press_key": self.press_key,
+            "select_option": self.select_option,
+            "check": self.check,
+            "uncheck": self.uncheck,
+            "go_back": self.go_back,
             "scroll": self.scroll,
             "upload_file": self.upload_file,
         }
@@ -74,6 +79,52 @@ class BrowserActions:
             element.press("Enter")
 
         return f'Entered text into {role} "{name}"'
+
+    def press_key(self, key: str) -> str:
+        """Press a keyboard key on the current page."""
+
+        page = self.get_page()
+        page.keyboard.press(key)
+
+        return f"Pressed {key}"
+
+    def select_option(
+        self,
+        role: str,
+        name: str,
+        option: str,
+    ) -> str:
+        """Choose an option from a select control."""
+
+        page = self.get_page()
+        element = page.get_by_role(role, name=name).first
+        element.select_option(label=option)
+
+        return f'Selected "{option}" from {role} "{name}"'
+
+    def check(self, role: str, name: str) -> str:
+        """Check a checkbox or radio control."""
+
+        page = self.get_page()
+        page.get_by_role(role, name=name).first.check()
+
+        return f'Checked {role} "{name}"'
+
+    def uncheck(self, role: str, name: str) -> str:
+        """Uncheck a checkbox."""
+
+        page = self.get_page()
+        page.get_by_role(role, name=name).first.uncheck()
+
+        return f'Unchecked {role} "{name}"'
+
+    def go_back(self) -> str:
+        """Go back one page in browser history."""
+
+        page = self.get_page()
+        page.go_back()
+
+        return page.url
 
     def scroll(self, amount: int = 600) -> str:
         """Scroll the current page up or down."""
