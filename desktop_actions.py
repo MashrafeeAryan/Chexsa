@@ -6,7 +6,10 @@ from time import perf_counter
 from typing import Any
 
 from pywinauto import Application, Desktop
+from pywinauto.controls.uiawrapper import UIAWrapper
 from pywinauto.keyboard import send_keys
+from pywinauto.uia_defines import IUIA
+from pywinauto.uia_element_info import UIAElementInfo
 
 
 KEY_NAMES = {
@@ -236,7 +239,9 @@ class DesktopActions:
         if title:
             return self.desktop.window(title=title).wrapper_object()
 
-        return self.desktop.get_active().top_level_parent()
+        return UIAWrapper(
+            UIAElementInfo(IUIA().get_focused_element())
+        ).top_level_parent()
 
     def _get_control(
         self,
