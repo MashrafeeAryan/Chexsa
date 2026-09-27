@@ -8,7 +8,7 @@ from typing import Any
 
 from pywinauto import Desktop
 from pywinauto.controls.uiawrapper import UIAWrapper
-from pywinauto.uia_element_info import UIAElementInfo
+from pywinauto.windows.uia_element_info import UIAElementInfo
 
 
 USEFUL_CONTROL_TYPES = {
