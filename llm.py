@@ -33,7 +33,12 @@ DECISION_SCHEMA = {
                 "none",
             ],
         },
-        "arguments": {"type": "object"},
+        "arguments": {
+            "type": "object",
+            "properties": {
+                "press_enter": {"type": "boolean"},
+            },
+        },
         "done": {"type": "boolean"},
         "response": {"type": "string"},
     },
@@ -185,7 +190,7 @@ Return ONLY valid JSON using this format:
 Available actions:
 - navigate: url
 - click: role, name
-- type: role, name, text
+- type: role, name, text, optionally press_enter=true
 - scroll: amount
 - upload_file: selector, file_path
 - none: task is complete
