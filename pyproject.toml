@@ -27,6 +27,8 @@ py-modules = [
     "agent",
     "browser_state",
     "browser_actions",
+    "desktop_state",
+    "desktop_actions",
     "llm",
     "cli",
 ]
