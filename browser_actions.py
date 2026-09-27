@@ -8,13 +8,19 @@ from playwright.sync_api import Page
 
 # BrowserActions asks BrowserState for the page that is currently open.
 GetPageFn = Callable[[], Page]
+SetPageFn = Callable[[Page], None]
 
 
 class BrowserActions:
     """Perform browser actions chosen by the Agent/LLM."""
 
-    def __init__(self, get_page: GetPageFn) -> None:
+    def __init__(
+        self,
+        get_page: GetPageFn,
+        set_page: SetPageFn,
+    ) -> None:
         self.get_page = get_page
+        self.set_page = set_page
 
     def execute(
         self,
@@ -32,6 +38,9 @@ class BrowserActions:
             "check": self.check,
             "uncheck": self.uncheck,
             "go_back": self.go_back,
+            "new_tab": self.new_tab,
+            "close_tab": self.close_tab,
+            "switch_tab": self.switch_tab,
             "scroll": self.scroll,
             "upload_file": self.upload_file,
         }
@@ -123,6 +132,48 @@ class BrowserActions:
 
         page = self.get_page()
         page.go_back()
+
+        return page.url
+
+    def new_tab(self, url: str = "about:blank") -> str:
+        """Open a new tab and make it active."""
+
+        page = self.get_page().context.new_page()
+        self.set_page(page)
+
+        if url != "about:blank":
+            page.goto(url)
+
+        return page.url
+
+    def close_tab(self) -> str:
+        """Close the active tab and switch to another one."""
+
+        page = self.get_page()
+        pages = page.context.pages
+
+        if len(pages) <= 1:
+            raise RuntimeError("Cannot close the only open tab.")
+
+        page.close()
+
+        next_page = page.context.pages[-1]
+        self.set_page(next_page)
+        next_page.bring_to_front()
+
+        return next_page.url
+
+    def switch_tab(self, index: int) -> str:
+        """Switch to an open tab by its zero-based index."""
+
+        pages = self.get_page().context.pages
+
+        if index < 0 or index >= len(pages):
+            raise ValueError(f"Tab {index} does not exist.")
+
+        page = pages[index]
+        self.set_page(page)
+        page.bring_to_front()
 
         return page.url
 

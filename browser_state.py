@@ -31,6 +31,7 @@ class BrowserSnapshot:
     title: str
     aria: str
     text: str
+    tabs: list[str]
 
 
 class BrowserState:
@@ -78,11 +79,17 @@ class BrowserState:
             f"{perf_counter() - total_start:.2f}s"
         )
 
+        tabs = [
+            f"{index}: {tab.title()} | {tab.url}"
+            for index, tab in enumerate(page.context.pages)
+        ]
+
         return BrowserSnapshot(
             url=page.url,
             title=title,
             aria=aria,
             text=text,
+            tabs=tabs,
         )
 
     def get_page(self) -> Page:

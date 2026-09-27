@@ -19,7 +19,10 @@ def main() -> None:
     browser.connect()
 
     # BrowserActions controls the same Chrome page BrowserState reads.
-    actions = BrowserActions(browser.get_page)
+    actions = BrowserActions(
+        browser.get_page,
+        browser.set_page,
+    )
 
     # The selected LLM decides which browser action happens next.
     llm = LLM()
