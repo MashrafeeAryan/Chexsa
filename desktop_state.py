@@ -8,7 +8,8 @@ from typing import Any
 
 from pywinauto import Desktop
 from pywinauto.controls.uiawrapper import UIAWrapper
-from pywinauto.windows.uia_element_info import UIAElementInfo
+from pywinauto.uia_defines import IUIA
+from pywinauto.uia_element_info import UIAElementInfo
 
 
 USEFUL_CONTROL_TYPES = {
@@ -75,7 +76,7 @@ class DesktopState:
         start = perf_counter()
 
         active = UIAWrapper(
-            UIAElementInfo.get_active()
+            UIAElementInfo(IUIA().get_focused_element())
         ).top_level_parent()
 
         print(
