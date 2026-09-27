@@ -7,6 +7,8 @@ from time import perf_counter
 from typing import Any
 
 from pywinauto import Desktop
+from pywinauto.controls.uiawrapper import UIAWrapper
+from pywinauto.windows.uia_element_info import UIAElementInfo
 
 
 USEFUL_CONTROL_TYPES = {
@@ -72,7 +74,9 @@ class DesktopState:
 
         start = perf_counter()
 
-        active = self.desktop.get_active().top_level_parent()
+        active = UIAWrapper(
+            UIAElementInfo.get_active()
+        ).top_level_parent()
 
         print(
             f"[TIMER] Desktop active window: "
