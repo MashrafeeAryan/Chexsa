@@ -46,6 +46,7 @@ class BrowserState:
 
         self.playwright: Playwright | None = None
         self.browser: Browser | None = None
+        self.active_page: Page | None = None
 
     def connect(self) -> None:
         """Connect Playwright to a Chrome instance already running."""
@@ -102,8 +103,16 @@ class BrowserState:
         if not pages:
             raise RuntimeError("Chrome has no open pages.")
 
-        # For now Chexsa uses the newest tab.
-        return pages[-1]
+        if self.active_page is not None and not self.active_page.is_closed():
+            return self.active_page
+
+        self.active_page = pages[-1]
+        return self.active_page
+
+    def set_page(self, page: Page) -> None:
+        """Set the tab Chexsa should currently use."""
+
+        self.active_page = page
 
     def _get_aria(self, page: Page) -> str:
         """Read useful interactive elements from the accessibility tree."""
