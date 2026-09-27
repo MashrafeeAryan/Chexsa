@@ -13,7 +13,7 @@ dependencies = [
     "google-genai",
     "openai",
     "playwright",
-    "pywinauto",
+    "pywinauto @ git+https://github.com/pywinauto/pywinauto.git@18d2a95cebed2f0061ab4e4c80c3a76ece5dd4f3",
     "python-dotenv",
 ]
 
