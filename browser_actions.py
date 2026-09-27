@@ -60,6 +60,7 @@ class BrowserActions:
         role: str,
         name: str,
         text: str,
+        press_enter: bool = False,
     ) -> str:
         """Put text into an input found by its role and name."""
 
@@ -68,6 +69,9 @@ class BrowserActions:
         # Example: role="textbox", name="Email"
         element = page.get_by_role(role, name=name).first
         element.fill(text)
+
+        if press_enter:
+            element.press("Enter")
 
         return f'Entered text into {role} "{name}"'
 
