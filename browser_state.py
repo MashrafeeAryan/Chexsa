@@ -93,7 +93,7 @@ class BrowserState:
         )
 
     def get_page(self) -> Page:
-        """Get the most recently opened page from Chrome."""
+        """Get the active tab from the connected Chrome instance."""
 
         if self.browser is None:
             raise RuntimeError(
@@ -110,7 +110,34 @@ class BrowserState:
         if not pages:
             raise RuntimeError("Chrome has no open pages.")
 
-        if self.active_page is not None and not self.active_page.is_closed():
+        # Prefer the tab the user is actually focused on.
+        for page in pages:
+            try:
+                if page.evaluate("document.hasFocus()"):
+                    self.active_page = page
+                    return page
+            except Exception:
+                pass
+
+        # If Chrome is not focused, the active tab is usually still visible.
+        visible_pages = []
+
+        for page in pages:
+            try:
+                if page.evaluate("document.visibilityState") == "visible":
+                    visible_pages.append(page)
+            except Exception:
+                pass
+
+        if len(visible_pages) == 1:
+            self.active_page = visible_pages[0]
+            return self.active_page
+
+        if (
+            self.active_page is not None
+            and not self.active_page.is_closed()
+            and self.active_page in pages
+        ):
             return self.active_page
 
         self.active_page = pages[-1]
