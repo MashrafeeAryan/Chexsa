@@ -237,11 +237,13 @@ class DesktopActions:
         """Find a top-level window."""
 
         if title:
-            return self.desktop.window(title=title).wrapper_object()
+            return self.desktop.window(title=title)
 
-        return UIAWrapper(
+        active = UIAWrapper(
             UIAElementInfo(IUIA().get_focused_element())
         ).top_level_parent()
+
+        return self.desktop.window(handle=active.handle)
 
     def _get_control(
         self,
