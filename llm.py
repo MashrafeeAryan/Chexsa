@@ -28,6 +28,14 @@ DECISION_SCHEMA = {
                 "navigate",
                 "click",
                 "type",
+                "press_key",
+                "select_option",
+                "check",
+                "uncheck",
+                "go_back",
+                "new_tab",
+                "close_tab",
+                "switch_tab",
                 "scroll",
                 "upload_file",
                 "none",
@@ -36,7 +44,17 @@ DECISION_SCHEMA = {
         "arguments": {
             "type": "object",
             "properties": {
+                "url": {"type": "string"},
+                "role": {"type": "string"},
+                "name": {"type": "string"},
+                "text": {"type": "string"},
                 "press_enter": {"type": "boolean"},
+                "key": {"type": "string"},
+                "option": {"type": "string"},
+                "index": {"type": "integer"},
+                "amount": {"type": "integer"},
+                "selector": {"type": "string"},
+                "file_path": {"type": "string"},
             },
         },
         "done": {"type": "boolean"},
@@ -181,7 +199,7 @@ You are the decision layer for Chexsa.
 Return ONLY valid JSON using this format:
 
 {{
-  "action": "navigate | click | type | scroll | upload_file | none",
+  "action": "navigate | click | type | press_key | select_option | check | uncheck | go_back | new_tab | close_tab | switch_tab | scroll | upload_file | none",
   "arguments": {{}},
   "done": false,
   "response": ""
@@ -191,6 +209,14 @@ Available actions:
 - navigate: url
 - click: role, name
 - type: role, name, text, optionally press_enter=true
+- press_key: key
+- select_option: role, name, option
+- check: role, name
+- uncheck: role, name
+- go_back: no arguments
+- new_tab: optionally url
+- close_tab: no arguments
+- switch_tab: index
 - scroll: amount
 - upload_file: selector, file_path
 - none: task is complete
@@ -208,6 +234,9 @@ USER REQUEST:
 CURRENT PAGE:
 URL: {state.url}
 TITLE: {state.title}
+
+OPEN TABS:
+{json.dumps(state.tabs, indent=2)}
 
 ARIA:
 {state.aria}
