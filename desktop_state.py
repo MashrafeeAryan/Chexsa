@@ -129,7 +129,7 @@ class DesktopState:
                     continue
 
                 name = (info.name or "").strip()
-                auto_id = (info.auto_id or "").strip()
+                auto_id = (info.automation_id or "").strip()
 
                 # Avoid sending huge control names to the LLM.
                 name = name[: self.max_name_chars]
