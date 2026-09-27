@@ -64,7 +64,10 @@ class DesktopActions:
     def launch_app(self, command: str) -> str:
         """Launch a Windows application."""
 
-        Application(backend="uia").start(command)
+        Application(backend="uia").start(
+            command,
+            wait_for_idle=False,
+        )
 
         return f"Launched {command}"
 
