@@ -8,6 +8,21 @@ from time import perf_counter
 from playwright.sync_api import Browser, Page, Playwright, sync_playwright
 
 
+ACTIONABLE_ARIA_ROLES = (
+    "button",
+    "link",
+    "textbox",
+    "searchbox",
+    "combobox",
+    "checkbox",
+    "radio",
+    "menuitem",
+    "option",
+    "tab",
+    "heading",
+)
+
+
 @dataclass
 class BrowserSnapshot:
     """A simple description of the page Chexsa can currently see."""
@@ -91,12 +106,24 @@ class BrowserState:
         return pages[-1]
 
     def _get_aria(self, page: Page) -> str:
-        """Read buttons, links, inputs, and other accessible page elements."""
+        """Read useful interactive elements from the accessibility tree."""
 
         start = perf_counter()
 
         try:
             aria = page.locator("body").aria_snapshot()
+
+            # Keep controls and headings the agent is likely to need.
+            useful_lines = [
+                line
+                for line in aria.splitlines()
+                if line.strip().startswith(
+                    tuple(f"- {role}" for role in ACTIONABLE_ARIA_ROLES)
+                )
+            ]
+
+            aria = "\n".join(useful_lines)
+
         except Exception:
             aria = ""
 
