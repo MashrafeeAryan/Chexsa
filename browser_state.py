@@ -1,5 +1,5 @@
 """Reads the current Chrome page for Chexsa.
-It collects the URL, title, ARIA structure, and visible text.
+It collects the URL, title, ARIA, visible text, and a screenshot.
 Temporary timers help us find slow browser-reading steps."""
 
 from dataclasses import dataclass
@@ -32,6 +32,7 @@ class BrowserSnapshot:
     aria: str
     text: str
     tabs: list[str]
+    screenshot: bytes
 
 
 class BrowserState:
@@ -73,6 +74,7 @@ class BrowserState:
         # Measure the two larger page-reading operations.
         aria = self._get_aria(page)
         text = self._get_visible_text(page)
+        screenshot = self._get_screenshot(page)
 
         print(
             f"[TIMER] Browser observe total: "
@@ -90,6 +92,7 @@ class BrowserState:
             aria=aria,
             text=text,
             tabs=tabs,
+            screenshot=screenshot,
         )
 
     def get_page(self) -> Page:
@@ -187,6 +190,24 @@ class BrowserState:
 
         # Limit large pages so they do not waste LLM context.
         return text[: self.max_text_chars]
+
+    def _get_screenshot(self, page: Page) -> bytes:
+        """Capture the visible browser area."""
+
+        start = perf_counter()
+
+        screenshot = page.screenshot(
+            type="jpeg",
+            quality=50,
+            full_page=False,
+        )
+
+        print(
+            f"[TIMER] Browser screenshot: "
+            f"{perf_counter() - start:.2f}s"
+        )
+
+        return screenshot
 
     def close(self) -> None:
         """Disconnect Chexsa from Chrome."""

@@ -2,6 +2,7 @@
 It sends browser state to the model and returns an AgentDecision.
 The provider and model can be changed without changing the agent."""
 
+import base64
 import json
 import os
 from time import perf_counter
@@ -113,9 +114,12 @@ class LLM:
         start = perf_counter()
 
         if self.provider == "gemini":
-            text = self._ask_gemini(prompt)
+            text = self._ask_gemini(prompt, state.screenshot)
         else:
-            text = self._ask_openai_compatible(prompt)
+            text = self._ask_openai_compatible(
+                prompt,
+                state.screenshot,
+            )
 
         print(
             f"[TIMER] LLM ({self.provider}/{self.model}): "
@@ -136,12 +140,25 @@ class LLM:
             response=decision["response"],
         )
 
-    def _ask_gemini(self, prompt: str) -> str:
-        """Send the prompt through Gemini."""
+    def _ask_gemini(
+        self,
+        prompt: str,
+        screenshot: bytes,
+    ) -> str:
+        """Send the prompt and screenshot through Gemini."""
+
+        image_data = base64.b64encode(screenshot).decode("utf-8")
 
         interaction = self.client.interactions.create(
             model=self.model,
-            input=prompt,
+            input=[
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image",
+                    "data": image_data,
+                    "mime_type": "image/jpeg",
+                },
+            ],
             response_format={
                 "type": "text",
                 "mime_type": "application/json",
@@ -154,15 +171,35 @@ class LLM:
 
         return interaction.output_text
 
-    def _ask_openai_compatible(self, prompt: str) -> str:
-        """Send the prompt through an OpenAI-compatible API."""
+    def _ask_openai_compatible(
+        self,
+        prompt: str,
+        screenshot: bytes,
+    ) -> str:
+        """Send the prompt and screenshot through an OpenAI-compatible API."""
+
+        image_data = base64.b64encode(screenshot).decode("utf-8")
 
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "user",
-                    "content": prompt,
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt,
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": (
+                                    "data:image/jpeg;base64,"
+                                    f"{image_data}"
+                                ),
+                            },
+                        },
+                    ],
                 }
             ],
             response_format={"type": "json_object"},
