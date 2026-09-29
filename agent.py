@@ -58,9 +58,16 @@ class Agent:
         history: list[StepResult] = []
 
         # Start each step by reading the latest state.
-        for _ in range(self.max_steps):
+        for step_number in range(1, self.max_steps + 1):
             state = self.observe()
             decision = self.decide(request, state, history)
+
+            print(
+                f"[AGENT] Step {step_number}: "
+                f"action={decision.action or 'none'} "
+                f"arguments={decision.arguments} "
+                f"done={decision.done}"
+            )
 
             if decision.done:
                 return decision.response or "Task complete."
