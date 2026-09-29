@@ -42,9 +42,11 @@ class BrowserState:
         self,
         cdp_url: str = "http://127.0.0.1:9222",
         max_text_chars: int = 8000,
+        max_aria_chars: int = 4000,
     ) -> None:
         self.cdp_url = cdp_url
         self.max_text_chars = max_text_chars
+        self.max_aria_chars = max_aria_chars
 
         self.playwright: Playwright | None = None
         self.browser: Browser | None = None
@@ -174,7 +176,9 @@ class BrowserState:
             aria = ""
 
         print(f"[TIMER] Browser ARIA: {perf_counter() - start:.2f}s")
-        return aria
+
+        # Limit large accessibility trees so they do not waste LLM context.
+        return aria[: self.max_aria_chars]
 
     def _get_visible_text(self, page: Page) -> str:
         """Read visible page text and limit how much goes to the LLM."""
