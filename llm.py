@@ -113,6 +113,12 @@ class LLM:
         prompt = self._build_prompt(request, state, history)
         start = perf_counter()
 
+        screenshot_kb = len(state.screenshot) / 1024
+        print(
+            f"[LLM] Sending screenshot to {self.model}: "
+            f"{screenshot_kb:.1f} KB"
+        )
+
         if self.provider == "gemini":
             text = self._ask_gemini(prompt, state.screenshot)
         else:
