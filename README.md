@@ -1,92 +1,252 @@
-# Chexsa
+# ✨ Chexsa
 
-> **A personal AI that can understand what you want and work on your computer to get it done.**
+### Your personal AI that can use your computer.
 
-Chexsa is an open-source desktop AI agent built to move beyond a normal chatbot.
+Chexsa is an open-source AI assistant that is being built to **see what is happening on your computer and take actions for you**.
 
-The long-term goal is to create a personal AI that understands how you work, can reason through multi-step tasks, use your browser and desktop applications, check whether its actions worked, recover when something goes wrong, and eventually learn reusable skills from experience.
+Instead of only answering questions, Chexsa can work through a task step by step.
 
-Instead of only telling you *how* to do something, Chexsa is being designed to actually help **do the work**.
-
-## Vision
-
-Most AI assistants stop at conversation.
-
-Chexsa is meant to connect conversation with action:
-
-```text
-You describe a goal
-        ↓
-Chexsa understands it
-        ↓
-Plans the task
-        ↓
-Uses the browser or computer
-        ↓
-Checks the result
-        ↓
-Recovers if something failed
-        ↓
-Finishes the task
-```
-
-The goal is a desktop application that feels like a personal AI built around you — one that can understand your requests, work across software, remember useful context, and become better at repeated tasks over time.
-
-## What Chexsa should become
-
-Chexsa is being designed to eventually:
-
-- Understand natural-language requests.
-- Break larger goals into smaller steps.
-- Use websites without requiring hard-coded scripts for every site.
-- Control local desktop applications.
-- Observe what is currently on the screen or page before acting.
-- Verify that an action actually succeeded.
-- Recover from unexpected pages, dialogs, or failed actions.
-- Learn reusable skills from successful tasks.
-- Build a personal memory of useful preferences and context.
-- Give the user control over important or sensitive actions.
-
-## What we are building now
-
-The first major focus is **computer use**.
-
-### Browser use
-
-Chexsa should be able to connect to Chrome, understand unfamiliar webpages, choose useful actions, interact with page elements, and verify the result.
-
-The goal is not to write a separate automation script for every website. Chexsa should inspect the page it is currently seeing and decide what to do from that state.
-
-### Desktop use
-
-Chexsa should also be able to work outside the browser.
-
-This includes understanding and interacting with local applications, windows, files, dialogs, and other parts of the operating system.
-
-Browser automation is the first practical surface. Desktop control will extend the same agent beyond the browser.
-
-## Design direction
-
-Chexsa is being built around a simple loop:
-
-```text
-Observe → Understand → Plan → Act → Verify → Recover
-                                      ↑         │
-                                      └─────────┘
-```
-
-Each part should stay separate enough that we can improve it without rebuilding the entire system.
-
-Over time, successful task traces can also become reusable skills so Chexsa does not have to reason through the same workflow from scratch every time.
-
-## Current status
-
-Chexsa is in early development.
-
-Right now the project has the basic Python package and terminal interface. The next development stages focus on browser control, computer-use tools, observation, action execution, and verification.
-
-The larger memory and skill-learning systems will be added as the core computer-use agent becomes reliable.
+> You tell Chexsa what you want.  
+> Chexsa figures out what to do next and gets to work.
 
 ---
 
-Chexsa is an experiment in building a personal AI that does more than answer questions — it should be able to **understand, act, and learn**.
+## 🌸 What can Chexsa do?
+
+Right now, Chexsa can use your browser.
+
+You can ask it things like:
+
+```text
+Open Gemini and ask what the capital of the USA is.
+```
+
+```text
+Open YouTube and search for a Java tutorial.
+```
+
+```text
+Go to this website and fill out the form.
+```
+
+Chexsa looks at the page, decides what to do, performs the action, and looks again.
+
+```text
+You
+ ↓
+Chexsa
+ ↓
+See what is there
+ ↓
+Decide what to do
+ ↓
+Do it
+ ↓
+Repeat
+```
+
+No separate script needs to be written for every website.
+
+---
+
+## 🖥️ Desktop control
+
+Chexsa is also learning how to use normal Windows apps.
+
+The goal is to support requests like:
+
+```text
+Open Word and write a paragraph about AI.
+```
+
+```text
+Open my document and add a new section.
+```
+
+Chexsa can already read many Windows buttons, menus, text boxes, and windows. Desktop actions are still being developed.
+
+---
+
+## 🚧 Current progress
+
+| Feature | Status |
+|---|---|
+| Terminal chat | ✅ |
+| Open websites | ✅ |
+| Click and type | ✅ |
+| Search websites | ✅ |
+| Work with browser tabs | ✅ |
+| Scroll pages | ✅ |
+| Upload files | ✅ |
+| Read webpage content | ✅ |
+| Read Windows apps | 🚧 |
+| Control Windows apps | 🚧 |
+| Browser + desktop together | 🔜 |
+| Check its own work | 🔜 |
+| Learn repeated tasks | 🔜 |
+
+Chexsa is still an early project, so some things will break while it grows.
+
+---
+
+## 💡 The idea
+
+Most AI assistants work like this:
+
+```text
+You ask something
+      ↓
+AI answers
+```
+
+Chexsa is trying to work like this:
+
+```text
+You ask for something
+        ↓
+Chexsa understands the goal
+        ↓
+Chexsa uses your computer
+        ↓
+Task complete
+```
+
+The bigger goal is a personal AI that can work across websites, apps, and files instead of being limited to a chat box.
+
+---
+
+## 🌱 Where Chexsa is going
+
+A future goal is for Chexsa to learn from tasks it has already completed.
+
+Instead of figuring out the same workflow from scratch every time, it could save what worked and reuse it later.
+
+```text
+First time
+Think through the task
+        ↓
+Task succeeds
+        ↓
+Save what worked
+        ↓
+Next time
+Reuse it
+```
+
+This could make repeated tasks faster and more reliable.
+
+---
+
+## 🛠️ Getting Started
+
+Chexsa currently works best on **Windows**.
+
+### 1. Clone it
+
+```bash
+git clone https://github.com/MashrafeeAryan/Chexsa.git
+cd Chexsa
+```
+
+### 2. Install it
+
+```bash
+pip install -e .
+```
+
+### 3. Add your AI provider
+
+Create a `.env` file.
+
+For an OpenAI-compatible provider:
+
+```env
+LLM_PROVIDER=openai_compatible
+LLM_MODEL=your-model
+LLM_API_KEY=your-api-key
+LLM_BASE_URL=your-api-url
+```
+
+Or use Gemini:
+
+```env
+LLM_PROVIDER=gemini
+LLM_MODEL=your-model
+GEMINI_API_KEY=your-api-key
+```
+
+Never upload your API keys to GitHub.
+
+### 4. Start Chrome for Chexsa
+
+Open PowerShell:
+
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
+  --remote-debugging-port=9222 `
+  --user-data-dir="$env:TEMP\chexsa-chrome"
+```
+
+Keep that Chrome window open.
+
+Then run:
+
+```bash
+chexsa
+```
+
+You should see:
+
+```text
+Chexsa
+Type 'exit' or 'quit' to close Chexsa.
+
+You >
+```
+
+---
+
+## 🗺️ Roadmap
+
+```text
+Browser control              ✅
+        ↓
+Windows app control          🚧
+        ↓
+Browser + desktop together
+        ↓
+Check whether actions worked
+        ↓
+Recover when something fails
+        ↓
+Learn reusable tasks
+        ↓
+Personal memory
+```
+
+---
+
+## ⚠️ Early Project
+
+Chexsa is experimental.
+
+It can interact with real websites and is being developed to control more of your computer. Avoid using it for anything where a wrong action could cause serious problems.
+
+---
+
+## 🤝 Contributing
+
+Chexsa is open source and still growing.
+
+Bug reports, ideas, experiments, and pull requests are welcome.
+
+---
+
+<div align="center">
+
+### 🌸 Chexsa
+
+**An AI that doesn't just tell you what to do.  
+It helps do it.**
+
+</div>
