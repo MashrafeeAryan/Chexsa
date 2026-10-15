@@ -5,7 +5,6 @@ The provider and model can be changed without changing the agent."""
 import base64
 import json
 import os
-from time import perf_counter
 
 from dotenv import load_dotenv
 from google import genai
@@ -275,8 +274,6 @@ PREVIOUS STEPS:
         """Ask the selected model for Chexsa's next browser action."""
 
         prompt = self._build_prompt(request, state, history)
-        start = perf_counter()
-
         screenshot_kb = len(state.screenshot) / 1024
         print(
             f"[LLM] Sending screenshot to {self.model}: "
@@ -290,11 +287,6 @@ PREVIOUS STEPS:
                 prompt,
                 state.screenshot,
             )
-
-        print(
-            f"[TIMER] LLM ({self.provider}/{self.model}): "
-            f"{perf_counter() - start:.2f}s"
-        )
 
         # Turn the model's JSON response into normal Python data.
         decision = json.loads(text)
