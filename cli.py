@@ -1,6 +1,4 @@
-"""Starts Chexsa and connects the parts needed to run it.
-It connects the browser, LLM, and agent before reading user commands.
-This is the main file users interact with from the terminal."""
+"""Run Chexsa from the terminal."""
 
 from agent import Agent
 from browser_actions import BrowserActions
@@ -14,27 +12,22 @@ def main() -> None:
     print("Chexsa")
     print("Type 'exit' or 'quit' to close Chexsa.\n")
 
-    # Connect Chexsa to the Chrome instance running on port 9222.
     browser = BrowserState()
     browser.connect()
 
-    # BrowserActions controls the same Chrome page BrowserState reads.
     actions = BrowserActions(
         browser.get_page,
         browser.set_page,
     )
 
-    # The selected LLM decides which browser action happens next.
     llm = LLM()
 
-    # Connect the browser, LLM, and actions to the main agent loop.
     agent = Agent(
         observe=browser.observe,
         decide=llm.decide,
         execute=actions.execute,
     )
 
-    # Keep accepting requests until the user exits.
     while True:
         try:
             user_input = input("You > ").strip()
