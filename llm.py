@@ -13,6 +13,7 @@ from openai import OpenAI
 
 from agent import AgentDecision, StepResult
 from browser_state import BrowserSnapshot
+from desktop_state import DesktopSnapshot
 
 
 # Load model settings and API keys from .env.
@@ -65,6 +66,34 @@ DECISION_SCHEMA = {
 }
 
 
+
+DESKTOP_DECISION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {
+            "type": "string",
+            "enum": [
+                "launch_app",
+                "focus_window",
+                "click_control",
+                "type_text",
+                "press_key",
+                "hotkey",
+                "select_option",
+                "check",
+                "uncheck",
+                "close_window",
+                "none",
+            ],
+        },
+        "arguments": {"type": "object"},
+        "done": {"type": "boolean"},
+        "response": {"type": "string"},
+    },
+    "required": ["action", "arguments", "done", "response"],
+}
+
+
 class LLM:
     """Use the selected model provider to make Chexsa decisions."""
 
@@ -102,6 +131,140 @@ class LLM:
 
         raise ValueError(f"Unknown LLM provider: {self.provider}")
 
+
+
+    def choose_mode(self, request: str) -> str:
+        """Choose whether a voice request needs the browser or desktop."""
+
+        prompt = (
+            "Classify this computer task as browser or desktop. "
+            "Use browser for websites and web searches. "
+            "Use desktop for Windows apps and local computer actions. "
+            "Return only browser or desktop.\n\n"
+            f"REQUEST:\n{request}"
+        )
+
+        if self.provider == "gemini":
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+            )
+            text = response.text
+        else:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = response.choices[0].message.content
+
+        mode = (text or "").strip().lower()
+
+        if "desktop" in mode:
+            return "desktop"
+
+        return "browser"
+
+    def decide_desktop(
+        self,
+        request: str,
+        state: DesktopSnapshot,
+        history: list[StepResult],
+    ) -> AgentDecision:
+        """Ask the model for the next desktop action."""
+
+        previous_steps = [
+            {
+                "action": step.action,
+                "arguments": step.arguments,
+                "result": str(step.result),
+                "error": step.error,
+            }
+            for step in history
+        ]
+
+        prompt = f"""
+You control Windows desktop apps for Chexsa.
+
+Return ONLY valid JSON:
+
+{{
+  "action": "launch_app | focus_window | click_control | type_text | press_key | hotkey | select_option | check | uncheck | close_window | none",
+  "arguments": {{}},
+  "done": false,
+  "response": ""
+}}
+
+Actions:
+- launch_app: command
+- focus_window: title
+- click_control: control_type, name or auto_id, optionally window_title
+- type_text: control_type, text, name or auto_id, optionally window_title
+- press_key: key
+- hotkey: keys
+- select_option: name, option, optionally window_title
+- check: name, optionally window_title
+- uncheck: name, optionally window_title
+- close_window: optionally title
+- none: task is complete
+
+Rules:
+- Choose ONE next desktop action.
+- Use only controls and windows you can see, except launch_app.
+- For common Windows apps, launch them with a normal executable or Windows command.
+- If the user asks for writing, create the requested text inside type_text.
+- Set done=true only when the task is complete.
+- Never return action="none" with done=false.
+
+USER REQUEST:
+{request}
+
+ACTIVE WINDOW:
+{state.active_window}
+
+OPEN WINDOWS:
+{json.dumps(state.windows, indent=2)}
+
+CONTROLS:
+{json.dumps(state.controls, indent=2)}
+
+PREVIOUS STEPS:
+{json.dumps(previous_steps, indent=2)}
+""".strip()
+
+        if self.provider == "gemini":
+            interaction = self.client.interactions.create(
+                model=self.model,
+                input=prompt,
+                response_format={
+                    "type": "text",
+                    "mime_type": "application/json",
+                    "schema": DESKTOP_DECISION_SCHEMA,
+                },
+            )
+            text = interaction.output_text
+        else:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+            )
+            text = response.choices[0].message.content
+
+        if not text:
+            raise RuntimeError("The model returned an empty response.")
+
+        decision = json.loads(text)
+        action = decision["action"]
+
+        if action == "none":
+            action = None
+
+        return AgentDecision(
+            action=action,
+            arguments=decision["arguments"],
+            done=decision["done"],
+            response=decision["response"],
+        )
 
     def decide(
         self,
