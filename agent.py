@@ -1,5 +1,4 @@
-"""Controls Chexsa's main observe, decide, and act loop.
-Verification is optional for now and can be added later."""
+"""Runs Chexsa's observe, decide, and act loop."""
 
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -22,14 +21,12 @@ class StepResult:
     action: str
     arguments: dict[str, Any]
     result: Any = None
-    verified: bool | None = None
     error: str | None = None
 
 
 ObserveFn = Callable[[], Any]
 DecideFn = Callable[[str, Any, list[StepResult]], AgentDecision]
 ExecuteFn = Callable[[str, dict[str, Any]], Any]
-VerifyFn = Callable[[str, dict[str, Any], Any], bool]
 
 
 class Agent:
@@ -40,13 +37,11 @@ class Agent:
         observe: ObserveFn | None = None,
         decide: DecideFn | None = None,
         execute: ExecuteFn | None = None,
-        verify: VerifyFn | None = None,
         max_steps: int = 4,
     ) -> None:
         self.observe = observe
         self.decide = decide
         self.execute = execute
-        self.verify = verify
         self.max_steps = max_steps
 
     def run(self, request: str) -> str:
@@ -86,20 +81,10 @@ class Agent:
         try:
             result = self.execute(decision.action, decision.arguments)
 
-            # Only verify the action when a verifier has been connected.
-            verified = None
-            if self.verify is not None:
-                verified = self.verify(
-                    decision.action,
-                    decision.arguments,
-                    result,
-                )
-
             return StepResult(
                 action=decision.action,
                 arguments=decision.arguments,
                 result=result,
-                verified=verified,
             )
 
         except Exception as error:
