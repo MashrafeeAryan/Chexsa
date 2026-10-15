@@ -17,9 +17,15 @@ dependencies = [
     "python-dotenv",
 ]
 
+[project.optional-dependencies]
+voice = [
+    "SpeechRecognition[audio]>=3.14,<4",
+]
+
 [project.scripts]
-# Start Chexsa from the terminal with the "chexsa" command.
+# Start Chexsa from the terminal.
 chexsa = "cli:main"
+chexsa-voice = "voice:main"
 
 [tool.setuptools]
 # Python files that are part of Chexsa.
@@ -31,4 +37,5 @@ py-modules = [
     "desktop_actions",
     "llm",
     "cli",
+    "voice",
 ]
