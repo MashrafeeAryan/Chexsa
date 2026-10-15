@@ -1,10 +1,11 @@
 """Runs Chexsa with the "Hey Chexsa" wake phrase.
-It listens for a spoken command and sends that command to the browser agent.
+It sends Word-writing commands to desktop automation and other commands to the browser.
 Voice mode is optional and does not change the normal terminal mode."""
 
 from agent import Agent
 from browser_actions import BrowserActions
 from browser_state import BrowserState
+from desktop_actions import DesktopActions
 from llm import LLM
 
 
@@ -23,7 +24,7 @@ def extract_command(text: str) -> str | None:
     return clean_text[len(WAKE_PHRASE):].lstrip(" ,.!?:-")
 
 
-def create_browser_agent() -> tuple[BrowserState, Agent]:
+def create_browser_agent(llm: LLM) -> tuple[BrowserState, Agent]:
     """Connect the existing browser agent for voice commands."""
 
     browser = BrowserState()
@@ -34,8 +35,6 @@ def create_browser_agent() -> tuple[BrowserState, Agent]:
         browser.set_page,
     )
 
-    llm = LLM()
-
     agent = Agent(
         observe=browser.observe,
         decide=llm.decide,
@@ -43,6 +42,34 @@ def create_browser_agent() -> tuple[BrowserState, Agent]:
     )
 
     return browser, agent
+
+
+def is_word_write_command(command: str) -> bool:
+    """Check whether a command asks Chexsa to write in Word."""
+
+    words = command.lower()
+    writing_words = ("write", "draft", "create", "type")
+
+    return "word" in words and any(
+        word in words
+        for word in writing_words
+    )
+
+
+def run_command(
+    command: str,
+    browser_agent: Agent,
+    llm: LLM,
+    desktop: DesktopActions,
+) -> str:
+    """Send the command to Word automation or the browser agent."""
+
+    if is_word_write_command(command):
+        text = llm.generate_text(command)
+        desktop.write_word(text)
+        return "I wrote it in Word."
+
+    return browser_agent.run(command)
 
 
 def main() -> None:
@@ -57,10 +84,12 @@ def main() -> None:
 
     recognizer = sr.Recognizer()
     microphone = sr.Microphone()
-    browser, agent = create_browser_agent()
+    llm = LLM()
+    desktop = DesktopActions()
+    browser, agent = create_browser_agent(llm)
 
     print('Chexsa Voice')
-    print('Say "Hey Chexsa" followed by a browser command.')
+    print('Say "Hey Chexsa" followed by a command.')
     print('Press Ctrl+C to stop.\n')
 
     try:
@@ -109,7 +138,12 @@ def main() -> None:
                     break
 
                 print(f"You > {command}")
-                response = agent.run(command)
+                response = run_command(
+                    command,
+                    agent,
+                    llm,
+                    desktop,
+                )
                 print(f"Chexsa > {response}")
                 print("Listening for Hey Chexsa...")
 
