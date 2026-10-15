@@ -1,10 +1,7 @@
 """Reads the current Chrome page for Chexsa.
-It collects the URL, title, ARIA, visible text, and a screenshot.
-Temporary timers help us find slow browser-reading steps."""
+It collects the URL, title, ARIA, visible text, and a screenshot."""
 
 from dataclasses import dataclass
-from time import perf_counter
-
 from playwright.sync_api import Browser, Page, Playwright, sync_playwright
 
 
@@ -65,23 +62,12 @@ class BrowserState:
     def observe(self) -> BrowserSnapshot:
         """Read the current page and print how long each part takes."""
 
-        total_start = perf_counter()
         page = self.get_page()
-
-        # Measure how long reading the page title takes.
-        title_start = perf_counter()
         title = page.title()
-        print(f"[TIMER] Browser title: {perf_counter() - title_start:.2f}s")
 
-        # Measure the two larger page-reading operations.
         aria = self._get_aria(page)
         text = self._get_visible_text(page)
         screenshot = self._get_screenshot(page)
-
-        print(
-            f"[TIMER] Browser observe total: "
-            f"{perf_counter() - total_start:.2f}s"
-        )
 
         tabs = [
             f"{index}: {tab.title()} | {tab.url}"
@@ -156,8 +142,6 @@ class BrowserState:
     def _get_aria(self, page: Page) -> str:
         """Read useful interactive elements from the accessibility tree."""
 
-        start = perf_counter()
-
         try:
             aria = page.locator("body").aria_snapshot()
 
@@ -175,8 +159,6 @@ class BrowserState:
         except Exception:
             aria = ""
 
-        print(f"[TIMER] Browser ARIA: {perf_counter() - start:.2f}s")
-
         # Limit large accessibility trees so they do not waste LLM context.
         return aria[: self.max_aria_chars]
 
@@ -190,25 +172,16 @@ class BrowserState:
         except Exception:
             text = ""
 
-        print(f"[TIMER] Browser text: {perf_counter() - start:.2f}s")
-
         # Limit large pages so they do not waste LLM context.
         return text[: self.max_text_chars]
 
     def _get_screenshot(self, page: Page) -> bytes:
         """Capture the visible browser area."""
 
-        start = perf_counter()
-
         screenshot = page.screenshot(
             type="jpeg",
             quality=50,
             full_page=False,
-        )
-
-        print(
-            f"[TIMER] Browser screenshot: "
-            f"{perf_counter() - start:.2f}s"
         )
 
         return screenshot
