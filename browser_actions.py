@@ -43,12 +43,38 @@ class BrowserActions:
             "switch_tab": self.switch_tab,
             "scroll": self.scroll,
             "upload_file": self.upload_file,
+            "batch": self.batch,
         }
 
         if action not in actions:
             raise ValueError(f"Unknown browser action: {action}")
 
         return actions[action](**arguments)
+
+
+    def batch(self, actions: list[dict[str, Any]]) -> list[Any]:
+        """Run simple actions that do not change the page."""
+
+        allowed = {
+            "type",
+            "select_option",
+            "check",
+            "uncheck",
+            "press_key",
+        }
+        results = []
+
+        for item in actions:
+            action = item["action"]
+
+            if action not in allowed:
+                raise ValueError(f"Action cannot be batched: {action}")
+
+            results.append(
+                self.execute(action, item.get("arguments", {}))
+            )
+
+        return results
 
     def navigate(self, url: str) -> str:
         """Open a URL in the current tab."""
