@@ -3,7 +3,6 @@ It finds the active window, open windows, and useful UI Automation controls.
 It only observes the desktop and never performs actions."""
 
 from dataclasses import dataclass
-from time import perf_counter
 from typing import Any
 
 from pywinauto import Desktop
@@ -51,18 +50,11 @@ class DesktopState:
     def observe(self) -> DesktopSnapshot:
         """Read the current desktop state."""
 
-        total_start = perf_counter()
-
         active = self._get_active_window()
         windows = self._get_windows()
         controls = self._get_controls(active)
 
         active_window = self._get_name(active)
-
-        print(
-            f"[TIMER] Desktop observe total: "
-            f"{perf_counter() - total_start:.2f}s"
-        )
 
         return DesktopSnapshot(
             active_window=active_window,
@@ -73,23 +65,15 @@ class DesktopState:
     def _get_active_window(self) -> Any:
         """Find the currently active top-level window."""
 
-        start = perf_counter()
-
         active = UIAWrapper(
             UIAElementInfo(IUIA().get_focused_element())
         ).top_level_parent()
-
-        print(
-            f"[TIMER] Desktop active window: "
-            f"{perf_counter() - start:.2f}s"
-        )
 
         return active
 
     def _get_windows(self) -> list[str]:
         """List visible top-level windows."""
 
-        start = perf_counter()
         windows = []
 
         for window in self.desktop.windows(visible_only=True):
@@ -98,17 +82,11 @@ class DesktopState:
             if name:
                 windows.append(name)
 
-        print(
-            f"[TIMER] Desktop windows: "
-            f"{perf_counter() - start:.2f}s"
-        )
-
         return windows
 
     def _get_controls(self, active_window: Any) -> list[str]:
         """Read useful controls from the active window."""
 
-        start = perf_counter()
         controls = []
         seen = set()
 
@@ -153,11 +131,6 @@ class DesktopState:
 
             except Exception:
                 continue
-
-        print(
-            f"[TIMER] Desktop controls: "
-            f"{perf_counter() - start:.2f}s"
-        )
 
         return controls
 
