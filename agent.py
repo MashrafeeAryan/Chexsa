@@ -51,8 +51,11 @@ class Agent:
 
         # Start each step by reading the latest state.
         for step_number in range(1, self.max_steps + 1):
-            state = self.observe()
-            decision = self.decide(request, state, history)
+            try:
+                state = self.observe()
+                decision = self.decide(request, state, history)
+            except Exception as error:
+                return f"Chexsa stopped: {error}"
 
             print(
                 f"[AGENT] Step {step_number}: "
