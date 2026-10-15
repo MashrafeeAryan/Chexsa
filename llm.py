@@ -103,38 +103,6 @@ class LLM:
         raise ValueError(f"Unknown LLM provider: {self.provider}")
 
 
-    def generate_text(self, request: str) -> str:
-        """Generate plain text without browser context."""
-
-        prompt = (
-            "Write the content requested below. "
-            "Return only the content, with no extra explanation.\n\n"
-            f"REQUEST:\n{request}"
-        )
-
-        if self.provider == "gemini":
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt,
-            )
-            text = response.text
-        else:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
-                ],
-            )
-            text = response.choices[0].message.content
-
-        if not text:
-            raise RuntimeError("The model returned an empty response.")
-
-        return text.strip()
-
     def decide(
         self,
         request: str,
