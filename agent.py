@@ -34,9 +34,9 @@ class Agent:
 
     def __init__(
         self,
-        observe: ObserveFn | None = None,
-        decide: DecideFn | None = None,
-        execute: ExecuteFn | None = None,
+        observe: ObserveFn,
+        decide: DecideFn,
+        execute: ExecuteFn,
         max_steps: int = 4,
     ) -> None:
         self.observe = observe
@@ -46,9 +46,6 @@ class Agent:
 
     def run(self, request: str) -> str:
         """Keep working until the task finishes or reaches the step limit."""
-
-        if not self._is_configured():
-            return "Agent controller is ready, but its tools are not connected yet."
 
         history: list[StepResult] = []
 
@@ -94,8 +91,3 @@ class Agent:
                 arguments=decision.arguments,
                 error=str(error),
             )
-
-    def _is_configured(self) -> bool:
-        """Check that the required parts of the agent are connected."""
-
-        return all((self.observe, self.decide, self.execute))
