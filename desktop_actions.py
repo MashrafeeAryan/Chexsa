@@ -2,7 +2,7 @@
 It uses UI Automation to work with windows and controls without screen coordinates.
 It only executes actions and does not decide what to do."""
 
-from time import monotonic, perf_counter, sleep
+from time import perf_counter
 from typing import Any
 
 from pywinauto import Application, Desktop
@@ -49,7 +49,6 @@ class DesktopActions:
             "check": self.check,
             "uncheck": self.uncheck,
             "close_window": self.close_window,
-            "write_word": self.write_word,
         }
 
         if action not in actions:
@@ -226,54 +225,6 @@ class DesktopActions:
 
         return f'Unchecked "{name}"'
 
-
-    def write_word(
-        self,
-        text: str,
-        timeout: float = 20.0,
-    ) -> str:
-        """Open Word and write text into a new document."""
-
-        self.launch_app('cmd.exe /c start "" winword /w')
-        deadline = monotonic() + timeout
-
-        while monotonic() < deadline:
-            for window in self.desktop.windows(visible_only=True):
-                title = window.window_text().strip()
-
-                if "word" not in title.lower():
-                    continue
-
-                try:
-                    window.set_focus()
-                    sleep(0.5)
-
-                    for control in window.descendants():
-                        info = control.element_info
-
-                        if info.control_type not in {"Document", "Edit"}:
-                            continue
-
-                        if not info.visible:
-                            continue
-
-                        control.set_focus()
-                        control.type_keys(
-                            text,
-                            with_spaces=True,
-                            set_foreground=True,
-                        )
-
-                        return f'Wrote text in Word window "{title}"'
-
-                except Exception:
-                    continue
-
-            sleep(0.5)
-
-        raise RuntimeError(
-            "Word opened, but Chexsa could not find the document area."
-        )
 
     def close_window(self, title: str | None = None) -> str:
         """Close a desktop window."""
