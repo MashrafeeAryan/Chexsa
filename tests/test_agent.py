@@ -40,7 +40,7 @@ class AgentTests(unittest.TestCase):
         )
 
     def test_stops_after_default_step_limit(self):
-        """The default testing limit should stop after four actions."""
+        """The default testing limit should stop after six actions."""
 
         executed = []
 
@@ -57,10 +57,10 @@ class AgentTests(unittest.TestCase):
 
         response = agent.run("Keep scrolling")
 
-        self.assertEqual(len(executed), 4)
+        self.assertEqual(len(executed), 6)
         self.assertEqual(
             response,
-            "Stopped after 4 steps before the task was complete.",
+            "Stopped after 6 steps before the task was complete.",
         )
 
     def test_action_error_is_given_back_to_the_model(self):
