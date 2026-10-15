@@ -2,7 +2,7 @@
 It uses UI Automation to work with windows and controls without screen coordinates.
 It only executes actions and does not decide what to do."""
 
-from time import perf_counter
+from time import perf_counter, sleep
 from typing import Any
 
 from pywinauto import Application, Desktop
@@ -71,6 +71,7 @@ class DesktopActions:
             command,
             wait_for_idle=False,
         )
+        sleep(1)
 
         return f"Launched {command}"
 
