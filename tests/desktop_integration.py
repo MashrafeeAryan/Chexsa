@@ -1,5 +1,5 @@
-"""Manual integration test for Chexsa's Word writing action.
-It opens Word, writes a paragraph, and verifies the document contents.
+"""Integration test for Chexsa's Windows desktop state and actions.
+It opens Microsoft Word, writes a four-sentence paragraph, and verifies the text.
 Word is left open after the test so the result can be inspected."""
 
 import sys
@@ -12,6 +12,7 @@ import win32clipboard
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from desktop_actions import DesktopActions
+from desktop_state import DesktopSnapshot, DesktopState
 
 
 PARAGRAPH = (
@@ -31,6 +32,54 @@ def check(condition: bool, name: str) -> None:
 
     print(f"{name}: FAIL")
     raise RuntimeError(f"{name} failed")
+
+
+def wait_for_word(
+    state: DesktopState,
+    actions: DesktopActions,
+    timeout: float = 20.0,
+) -> str:
+    """Wait for a Word window and return its exact title."""
+
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        snapshot = state.observe()
+
+        for title in snapshot.windows:
+            if "word" in title.lower():
+                actions.focus_window(title)
+                time.sleep(1)
+                return title
+
+        time.sleep(0.5)
+
+    raise RuntimeError("Microsoft Word did not appear within 20 seconds.")
+
+
+def find_editable_control(
+    snapshot: DesktopSnapshot,
+) -> tuple[str, str | None, str | None]:
+    """Find a Document or Edit control from the desktop state."""
+
+    for control_type in ("Document", "Edit"):
+        prefix = f"{control_type} "
+
+        for description in snapshot.controls:
+            if not description.startswith(prefix):
+                continue
+
+            value = description[len(prefix):]
+
+            if value.startswith('"') and value.endswith('"'):
+                return control_type, value[1:-1], None
+
+            if value.startswith('[id="') and value.endswith('"]'):
+                return control_type, None, value[5:-2]
+
+    raise RuntimeError(
+        "Word opened, but no editable Document or Edit control was found."
+    )
 
 
 def read_clipboard() -> str:
@@ -53,11 +102,29 @@ def read_clipboard() -> str:
     raise RuntimeError("Could not read text from the Windows clipboard.")
 
 
+state = DesktopState()
 actions = DesktopActions()
 
-print("=== WRITE IN WORD ===")
-result = actions.write_word(PARAGRAPH)
-print(result)
+print("=== LAUNCH WORD ===")
+actions.launch_app('cmd.exe /c start "" winword /w')
+
+word_title = wait_for_word(state, actions)
+check("word" in word_title.lower(), "Word launch")
+
+print("\n=== READ CONTROLS ===")
+snapshot = state.observe()
+control_type, name, auto_id = find_editable_control(snapshot)
+
+check(control_type in {"Document", "Edit"}, "Editable control detection")
+
+print("\n=== TYPE PARAGRAPH ===")
+actions.type_text(
+    control_type=control_type,
+    name=name,
+    auto_id=auto_id,
+    window_title=word_title,
+    text=PARAGRAPH,
+)
 
 print("\n=== VERIFY TEXT ===")
 actions.hotkey(["ctrl", "a"])
@@ -67,6 +134,6 @@ time.sleep(0.3)
 copied_text = read_clipboard().strip()
 actions.press_key("right")
 
-check(copied_text == PARAGRAPH, "Word text verification")
+check(copied_text == PARAGRAPH, "Paragraph verification")
 
 print("\nALL DESKTOP TESTS PASSED")
