@@ -2,7 +2,7 @@
 It uses UI Automation to work with windows and controls without screen coordinates.
 It only executes actions and does not decide what to do."""
 
-from time import perf_counter, sleep
+from time import sleep
 from typing import Any
 
 from pywinauto import Application, Desktop
@@ -54,15 +54,7 @@ class DesktopActions:
         if action not in actions:
             raise ValueError(f"Unknown desktop action: {action}")
 
-        start = perf_counter()
-        result = actions[action](**arguments)
-
-        print(
-            f"[TIMER] Desktop action {action}: "
-            f"{perf_counter() - start:.2f}s"
-        )
-
-        return result
+        return actions[action](**arguments)
 
     def launch_app(self, command: str) -> str:
         """Launch a Windows application."""
@@ -225,7 +217,6 @@ class DesktopActions:
             control.toggle()
 
         return f'Unchecked "{name}"'
-
 
     def close_window(self, title: str | None = None) -> str:
         """Close a desktop window."""
