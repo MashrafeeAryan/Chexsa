@@ -23,7 +23,10 @@ def check(condition: bool, name: str) -> None:
 
 browser = BrowserState()
 browser.connect()
-actions = BrowserActions(browser.get_page)
+actions = BrowserActions(
+    browser.get_page,
+    browser.set_page,
+)
 
 print("=== OBSERVATION TEST ===")
 before = browser.observe()
