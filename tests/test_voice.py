@@ -2,7 +2,34 @@
 
 import unittest
 
-from voice import extract_command
+from voice import extract_command, is_word_write_command, run_command
+
+
+class FakeBrowserAgent:
+    def __init__(self):
+        self.requests = []
+
+    def run(self, command):
+        self.requests.append(command)
+        return "Browser task done."
+
+
+class FakeLLM:
+    def __init__(self):
+        self.requests = []
+
+    def generate_text(self, command):
+        self.requests.append(command)
+        return "Generated essay."
+
+
+class FakeDesktop:
+    def __init__(self):
+        self.written_text = []
+
+    def write_word(self, text):
+        self.written_text.append(text)
+        return "Wrote text in Word."
 
 
 class VoiceTests(unittest.TestCase):
@@ -38,6 +65,68 @@ class VoiceTests(unittest.TestCase):
         command = extract_command("Hey Chexsa")
 
         self.assertEqual(command, "")
+
+
+    def test_detects_word_writing_command(self):
+        """Word writing requests should use desktop automation."""
+
+        self.assertTrue(
+            is_word_write_command("Write me an essay in Word")
+        )
+
+    def test_normal_command_stays_in_browser(self):
+        """Normal web requests should stay on the browser path."""
+
+        self.assertFalse(
+            is_word_write_command("Search JavaScript tutorials on YouTube")
+        )
+
+    def test_word_command_generates_and_writes_text(self):
+        """A Word request should generate text and send it to Word."""
+
+        browser = FakeBrowserAgent()
+        llm = FakeLLM()
+        desktop = FakeDesktop()
+
+        response = run_command(
+            "Write me an essay in Word",
+            browser,
+            llm,
+            desktop,
+        )
+
+        self.assertEqual(response, "I wrote it in Word.")
+        self.assertEqual(
+            llm.requests,
+            ["Write me an essay in Word"],
+        )
+        self.assertEqual(
+            desktop.written_text,
+            ["Generated essay."],
+        )
+        self.assertEqual(browser.requests, [])
+
+    def test_browser_command_uses_existing_agent(self):
+        """A non-Word request should use the browser agent."""
+
+        browser = FakeBrowserAgent()
+        llm = FakeLLM()
+        desktop = FakeDesktop()
+
+        response = run_command(
+            "Search JavaScript tutorials on YouTube",
+            browser,
+            llm,
+            desktop,
+        )
+
+        self.assertEqual(response, "Browser task done.")
+        self.assertEqual(
+            browser.requests,
+            ["Search JavaScript tutorials on YouTube"],
+        )
+        self.assertEqual(llm.requests, [])
+        self.assertEqual(desktop.written_text, [])
 
 
 if __name__ == "__main__":
