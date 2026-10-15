@@ -434,6 +434,7 @@ Available actions:
 - none: task is complete
 
 Rules:
+- Before choosing an action, check whether the requested result is already visible. If it is, use action="none" and done=true.
 - Choose ONE next browser action.
 - Use batch only for multiple type, select_option, check, uncheck, or press_key actions on the current page.
 - Do not put click, navigate, tabs, scroll, or upload_file inside a batch.
