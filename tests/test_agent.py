@@ -101,5 +101,25 @@ class AgentTests(unittest.TestCase):
         )
 
 
+    def test_decision_error_stops_cleanly(self):
+        """Model failures should stop the run without crashing."""
+
+        def decide(request, state, history):
+            raise RuntimeError("Model unavailable.")
+
+        agent = Agent(
+            observe=lambda: "page",
+            decide=decide,
+            execute=lambda action, arguments: None,
+        )
+
+        response = agent.run("Open YouTube")
+
+        self.assertEqual(
+            response,
+            "Chexsa stopped: Model unavailable.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
