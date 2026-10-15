@@ -61,10 +61,7 @@ class BrowserActions:
     def click(self, role: str, name: str) -> str:
         """Click an element using its ARIA role and visible name."""
 
-        page = self.get_page()
-
-        # Example: role="button", name="Apply"
-        element = page.get_by_role(role, name=name).first
+        element = self._get_element(role, name)
         element.click()
 
         return f'Clicked {role} "{name}"'
@@ -78,10 +75,7 @@ class BrowserActions:
     ) -> str:
         """Put text into an input found by its role and name."""
 
-        page = self.get_page()
-
-        # Example: role="textbox", name="Email"
-        element = page.get_by_role(role, name=name).first
+        element = self._get_element(role, name)
         element.fill(text)
 
         if press_enter:
@@ -105,8 +99,7 @@ class BrowserActions:
     ) -> str:
         """Choose an option from a select control."""
 
-        page = self.get_page()
-        element = page.get_by_role(role, name=name).first
+        element = self._get_element(role, name)
         element.select_option(label=option)
 
         return f'Selected "{option}" from {role} "{name}"'
@@ -114,16 +107,14 @@ class BrowserActions:
     def check(self, role: str, name: str) -> str:
         """Check a checkbox or radio control."""
 
-        page = self.get_page()
-        page.get_by_role(role, name=name).first.check()
+        self._get_element(role, name).check()
 
         return f'Checked {role} "{name}"'
 
     def uncheck(self, role: str, name: str) -> str:
         """Uncheck a checkbox."""
 
-        page = self.get_page()
-        page.get_by_role(role, name=name).first.uncheck()
+        self._get_element(role, name).uncheck()
 
         return f'Unchecked {role} "{name}"'
 
@@ -186,6 +177,20 @@ class BrowserActions:
         page.mouse.wheel(0, amount)
 
         return f"Scrolled {amount} pixels"
+
+
+    def _get_element(self, role: str, name: str):
+        """Find one browser element by role and name."""
+
+        element = self.get_page().get_by_role(role, name=name)
+        count = element.count()
+
+        if count != 1:
+            raise RuntimeError(
+                f'Expected one {role} "{name}", found {count}.'
+            )
+
+        return element
 
     def upload_file(
         self,
