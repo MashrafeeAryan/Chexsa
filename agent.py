@@ -37,7 +37,7 @@ class Agent:
         observe: ObserveFn,
         decide: DecideFn,
         execute: ExecuteFn,
-        max_steps: int = 4,
+        max_steps: int = 6,
     ) -> None:
         self.observe = observe
         self.decide = decide
