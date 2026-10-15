@@ -79,6 +79,7 @@ Chexsa can already read many Windows buttons, menus, text boxes, and windows. De
 | Scroll pages | ✅ |
 | Upload files | ✅ |
 | Read webpage content | ✅ |
+| "Hey Chexsa" voice commands | ✅ |
 | Read Windows apps | 🚧 |
 | Control Windows apps | 🚧 |
 | Browser + desktop together | 🔜 |
@@ -203,6 +204,53 @@ Type 'exit' or 'quit' to close Chexsa.
 
 You >
 ```
+
+---
+
+
+## 🎙️ Voice Mode
+
+Chexsa can listen for **"Hey Chexsa"** and send the rest of the sentence to the same browser agent.
+
+Install the optional voice tools:
+
+```powershell
+pip install -e ".[voice]"
+```
+
+Start voice mode:
+
+```powershell
+chexsa-voice
+```
+
+Then say:
+
+```text
+Hey Chexsa, search JavaScript tutorials on YouTube.
+```
+
+You can also say only **"Hey Chexsa"** and Chexsa will listen once more for your command.
+
+Voice mode must be running to hear the wake phrase. Speech is currently transcribed with Google Speech Recognition through the SpeechRecognition package.
+
+---
+
+## ✅ Tests
+
+Run the fast unit tests:
+
+```powershell
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+Run the manual browser test while the special Chrome window is open:
+
+```powershell
+python tests/browser_integration.py
+```
+
+GitHub Actions automatically runs the fast tests on Python 3.11 and 3.12 for pushes and pull requests. Version tags such as `v0.1.0` also build release packages automatically.
 
 ---
 
