@@ -165,8 +165,6 @@ class BrowserState:
     def _get_visible_text(self, page: Page) -> str:
         """Read visible page text and limit how much goes to the LLM."""
 
-        start = perf_counter()
-
         try:
             text = page.locator("body").inner_text()
         except Exception:
