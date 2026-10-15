@@ -224,6 +224,12 @@ Start voice mode:
 chexsa-voice
 ```
 
+Or start Chrome and voice mode together:
+
+```powershell
+.\scripts\start_voice.ps1
+```
+
 Then say:
 
 ```text
