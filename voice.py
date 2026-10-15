@@ -25,6 +25,20 @@ def extract_command(text: str) -> str | None:
     return clean_text[len(WAKE_PHRASE):].lstrip(" ,.!?:-")
 
 
+def listen_text(recognizer, source, sr) -> str | None:
+    """Listen once and return recognized speech."""
+
+    audio = recognizer.listen(source, phrase_time_limit=10)
+
+    try:
+        return recognizer.recognize_google(audio).strip()
+    except sr.UnknownValueError:
+        return None
+    except sr.RequestError as error:
+        print(f"Chexsa > Speech service error: {error}")
+        return None
+
+
 def create_browser_agent(llm: LLM) -> tuple[BrowserState, Agent]:
     """Connect the existing browser agent for voice commands."""
 
@@ -72,7 +86,6 @@ def run_command(
     return browser_agent.run(command)
 
 
-
 def main() -> None:
     """Listen for Hey Chexsa and run the spoken browser command."""
 
@@ -100,17 +113,9 @@ def main() -> None:
             print("Listening for Hey Chexsa...")
 
             while True:
-                audio = recognizer.listen(
-                    source,
-                    phrase_time_limit=10,
-                )
+                text = listen_text(recognizer, source, sr)
 
-                try:
-                    text = recognizer.recognize_google(audio)
-                except sr.UnknownValueError:
-                    continue
-                except sr.RequestError as error:
-                    print(f"Chexsa > Speech service error: {error}")
+                if not text:
                     continue
 
                 command = extract_command(text)
@@ -120,18 +125,10 @@ def main() -> None:
 
                 if not command:
                     print("Chexsa > What should I do?")
-                    audio = recognizer.listen(
-                        source,
-                        phrase_time_limit=10,
-                    )
+                    command = listen_text(recognizer, source, sr)
 
-                    try:
-                        command = recognizer.recognize_google(audio).strip()
-                    except sr.UnknownValueError:
+                    if not command:
                         print("Chexsa > I did not understand that.")
-                        continue
-                    except sr.RequestError as error:
-                        print(f"Chexsa > Speech service error: {error}")
                         continue
 
                 if command.lower() in {"exit", "quit", "stop listening"}:
