@@ -38,7 +38,7 @@ class BrowserState:
     def __init__(
         self,
         cdp_url: str = "http://127.0.0.1:9222",
-        max_text_chars: int = 8000,
+        max_text_chars: int = 4000,
         max_aria_chars: int = 4000,
     ) -> None:
         self.cdp_url = cdp_url
