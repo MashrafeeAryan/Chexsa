@@ -101,5 +101,24 @@ class BrowserStateTests(unittest.TestCase):
         self.assertLessEqual(len(changes), 80)
 
 
+    def test_late_new_text_is_not_lost_on_large_page(self):
+        """A new result at the end of a large page should still appear."""
+
+        state = BrowserState(max_changes_chars=200)
+        old_text = "\n".join(
+            f"Existing message {index}"
+            for index in range(500)
+        )
+        state.previous_aria = ""
+        state.previous_text = old_text
+
+        changes = state._get_changes(
+            "",
+            old_text + "\nMessage sent",
+        )
+
+        self.assertIn("Message sent", changes)
+
+
 if __name__ == "__main__":
     unittest.main()
