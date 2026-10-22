@@ -34,4 +34,16 @@ jobs:
 
       - name: Run Chrome browser fixtures
         timeout-minutes: 10
+        env:
+          CHEXSA_FIXTURE_DIAGNOSTICS: "1"
         run: .\scripts\test_browser.ps1 -Python python
+
+      - name: Save failed fixture diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-diagnostics-${{ matrix.python-version }}
+          path: .chexsa/fixture-diagnostics
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 3

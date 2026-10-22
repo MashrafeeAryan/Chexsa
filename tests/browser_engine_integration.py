@@ -3,6 +3,7 @@
 import functools
 import http.server
 import json
+import os
 import sys
 import tempfile
 import threading
@@ -111,7 +112,25 @@ class BrowserIntegration(unittest.TestCase):
         return matches[0]
 
     def act(self, action, **arguments):
+        if os.environ.get("CHEXSA_FIXTURE_DIAGNOSTICS") == "1" and action == "capture_screenshot":
+            self._fixture_images = []
+            if not getattr(self.page, "_fixture_traced", False):
+                original_screenshot = self.page.screenshot
+                def trace_screenshot(**options):
+                    image = original_screenshot(**options)
+                    self._fixture_images.append(image)
+                    self._fixture_images = self._fixture_images[-12:]
+                    return image
+                self.page.screenshot = trace_screenshot
+                self.page._fixture_traced = True
         result = self.backend.execute(ActionRequest(action, arguments))
+        if result.status != "ok" and getattr(self, "_fixture_images", None):
+            directory = Path(".chexsa/fixture-diagnostics") / self._testMethodName
+            directory.mkdir(parents=True, exist_ok=True)
+            for index, image in enumerate(self._fixture_images):
+                (directory / f"frame-{index}.jpg").write_bytes(image)
+            (directory / "observed.jpg").write_bytes(self.backend.observation.screenshot)
+            (directory / "metadata.json").write_text(json.dumps({"ticket": self.backend.visual.ticket, "viewport": self.backend.visual._viewport(), "result": str(result)}, indent=2), encoding="utf-8")
         self.assertEqual(result.status, "ok", result)
         return result
 
