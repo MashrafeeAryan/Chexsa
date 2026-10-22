@@ -61,3 +61,14 @@ class ContextTests(unittest.TestCase):
         second.text["status"] = {"text": "Message sent", "region_path": ()}
         second.changes = changes(first, second)
         self.assertIn("Message sent", ContextView(3000).render(second))
+
+    def test_explicit_region_inspection_overrides_automatic_focus(self):
+        observation = snapshot(2)
+        from chexsa_browser.models import Region
+        first, second = observation.elements
+        observation.regions = [Region("dialog", "dialog", [first], 1000, "dialog-ref"), Region("inbox", "inbox", [second], 0, "inbox-ref")]
+        view = ContextView()
+        view.render(observation)
+        view.inspect(observation, "inbox-ref")
+        rendered = json.loads(view.render(observation))
+        self.assertEqual(rendered["focused_region"], "inbox-ref")

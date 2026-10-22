@@ -39,6 +39,7 @@ class ContextView:
             raise ValueError("Page context budget must be at least 2000 characters.")
         self.budget = budget
         self.selected = None
+        self._automatic = None
 
     def _offset(self, observation, cursor):
         if not cursor:
@@ -78,6 +79,8 @@ class ContextView:
         return self.page(observation, matches, cursor)
 
     def inspect(self, observation, ref="page", cursor=None):
+        if ref == "page":
+            return self.page(observation, observation.elements, cursor)
         region = next((r for r in observation.regions if r.ref == ref or r.key == ref), None)
         if region:
             self.selected = region.key
@@ -94,8 +97,9 @@ class ContextView:
     def render(self, observation, discovery=None):
         region = next((r for r in observation.regions if r.key == self.selected), None)
         # A newly focused form/dialog takes precedence over a previously inspected inbox.
-        if observation.regions and (region is None or observation.regions[0].priority >= 100):
+        if observation.regions and (region is None or observation.regions[0].key != self._automatic and observation.regions[0].priority >= 100):
             region = observation.regions[0]
+        self._automatic = observation.regions[0].key if observation.regions else None
         self.selected = region.key if region else None
         overview = [{"ref": r.ref, "label": short(r.label, 160), "controls": sum(bool(e.capabilities) for e in r.elements)} for r in observation.regions[:12]]
         data = {"observation_id": observation.id, "page_id": observation.page_id, "url": short(observation.url, 500), "title": short(observation.title, 180), "tabs": [{**tab, "title": short(tab["title"], 100), "url": short(tab["url"], 180)} for tab in observation.tabs[:12]], "tabs_omitted": max(0, len(observation.tabs) - 12), "regions": overview, "regions_omitted": max(0, len(observation.regions) - 12), "focused_region": region.ref if region else "page", "issues": observation.issues[:5]}
