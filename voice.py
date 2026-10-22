@@ -48,6 +48,7 @@ def create_browser_agent(llm: LLM) -> tuple[BrowserState, Agent]:
     actions = BrowserActions(
         browser.get_page,
         browser.set_page,
+        browser.get_element,
     )
 
     agent = Agent(
