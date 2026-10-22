@@ -1,4 +1,5 @@
 import unittest
+import hashlib
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -40,3 +41,38 @@ class VisualTests(unittest.TestCase):
         visual._viewport = lambda: viewport
         self.assertEqual(visual._settled_image(), (b"4", viewport))
         self.assertEqual(page.screenshot.call_count, 4)
+
+    def test_validation_waits_for_render_but_rejects_changed_images(self):
+        viewport = {"width": 900, "height": 700, "version": 2}
+        session = SimpleNamespace(page_id="tab", epochs={})
+        visual = VisualTargeting(SimpleNamespace(session=session, observation=SimpleNamespace(id="o1")))
+        visual._viewport = lambda: viewport
+        visual.ticket = {"id": "image", "observation": "o1", "page": "tab", "epochs": {}, "viewport": viewport, "digest": hashlib.sha256(b"original").hexdigest()}
+        visual._settled_image = Mock(return_value=(b"original", {**viewport, "version": 6}))
+        self.assertEqual(visual._check("image"), visual.ticket)
+        visual._settled_image = Mock(return_value=(b"changed canvas", {**viewport, "version": 6}))
+        with self.assertRaises(BrowserError):
+            visual._check("image")
+
+    def test_validation_rejects_viewport_changes_during_capture(self):
+        viewport = {"width": 900, "height": 700, "version": 2}
+        session = SimpleNamespace(page_id="tab", epochs={})
+        visual = VisualTargeting(SimpleNamespace(session=session, observation=SimpleNamespace(id="o1")))
+        visual._viewport = lambda: viewport
+        visual.ticket = {"id": "image", "observation": "o1", "page": "tab", "epochs": {}, "viewport": viewport, "digest": hashlib.sha256(b"original").hexdigest()}
+        visual._settled_image = Mock(return_value=(b"original", {**viewport, "width": 901}))
+        with self.assertRaises(BrowserError):
+            visual._check("image")
+
+    def test_validation_rejects_navigation_during_capture(self):
+        viewport = {"width": 900, "height": 700, "version": 2}
+        session = SimpleNamespace(page_id="tab", epochs={"tab": 0})
+        visual = VisualTargeting(SimpleNamespace(session=session, observation=SimpleNamespace(id="o1")))
+        visual._viewport = lambda: viewport
+        visual.ticket = {"id": "image", "observation": "o1", "page": "tab", "epochs": {"tab": 0}, "viewport": viewport, "digest": hashlib.sha256(b"original").hexdigest()}
+        def navigate():
+            session.epochs["tab"] += 1
+            return b"original", viewport
+        visual._settled_image = navigate
+        with self.assertRaises(BrowserError):
+            visual._check("image")

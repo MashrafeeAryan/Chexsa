@@ -56,7 +56,11 @@ class VisualTargeting:
         if not ticket or ticket["id"] != screenshot_id or ticket["observation"] != self.backend.observation.id or ticket["page"] != session.page_id or ticket["epochs"] != session.epochs or ticket["viewport"] != self._viewport():
             raise BrowserError("stale_screenshot", "The screenshot is stale. Capture a new one before clicking.")
         # Catches canvas/image changes and CSS animation that DOM mutation counters miss.
-        current = session.get_page().screenshot(**OPTIONS)
+        current, viewport = self._settled_image()
+        if ticket["page"] != session.page_id or ticket["epochs"] != session.epochs or ticket["observation"] != self.backend.observation.id:
+            raise BrowserError("stale_screenshot", "The page changed while checking the screenshot.")
+        if any(viewport.get(key) != value for key, value in ticket["viewport"].items() if key != "version"):
+            raise BrowserError("stale_screenshot", "The viewport changed while checking the screenshot.")
         if hashlib.sha256(current).hexdigest() != ticket["digest"]:
             raise BrowserError("stale_screenshot", "The visible page changed. Capture a new screenshot.")
         return ticket
