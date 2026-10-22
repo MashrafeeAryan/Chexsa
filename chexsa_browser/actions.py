@@ -22,8 +22,11 @@ FIELDS = {
     "inspect_region": ({}, {"ref": str, "cursor": str}),
     "list_tabs": ({}, {}), "batch": ({"actions": list}, {}),
     "wait": ({}, {"milliseconds": int}),
+    "capture_screenshot": ({}, {}),
+    "click_coordinates": ({"x": (int, float), "y": (int, float), "screenshot_id": str}, {}),
+    "type_focused": ({"text": str, "screenshot_id": str}, {"press_enter": bool}),
 }
-DISCOVERY = {"find_elements", "inspect_region", "list_tabs"}
+DISCOVERY = {"find_elements", "inspect_region", "list_tabs", "capture_screenshot"}
 BATCHABLE = {"type", "select_option", "check", "uncheck", "press_key"}
 
 
@@ -38,7 +41,7 @@ def validate(request):
             raise BrowserError("invalid_arguments", f"{request.action} requires {name}.")
     for name, value in request.arguments.items():
         expected = {**required, **optional}.get(name)
-        if expected is None or type(value) is not expected:
+        if expected is None or type(value) not in (expected if isinstance(expected, tuple) else (expected,)):
             raise BrowserError("invalid_arguments", f"Invalid argument {name!r} for {request.action}.")
     if request.action == "switch_tab" and len(request.arguments) != 1:
         raise BrowserError("invalid_arguments", "Choose one tab index or page_id.")
@@ -74,8 +77,10 @@ class Executor:
                     data = self.backend.view.find(observation, **request.arguments)
                 elif request.action == "inspect_region":
                     data = self.backend.view.inspect(observation, **request.arguments)
-                else:
+                elif request.action == "list_tabs":
                     data = {"tabs": observation.tabs}
+                else:
+                    data = self.backend.capture_screenshot()
                 self.backend.view.render(observation, data)
                 return ActionResult(request.action, "ok", "Observation expanded.", data=data)
             if request.action == "batch":
@@ -124,6 +129,12 @@ class Executor:
             self._click_target(target)
         finally:
             target.close()
+
+    def click_coordinates(self, x, y, screenshot_id):
+        return self.backend.visual.click(x, y, screenshot_id)
+
+    def type_focused(self, text, screenshot_id, press_enter=False):
+        return self.backend.visual.type(text, screenshot_id, press_enter)
 
     def type(self, ref, text, press_enter=False):
         target = self.registry.resolve(ref, "type")

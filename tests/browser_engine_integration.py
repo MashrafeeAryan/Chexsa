@@ -144,6 +144,43 @@ class BrowserIntegration(unittest.TestCase):
         self.assertEqual(self.backend.execute(request).code, "unsafe_batch")
         self.assertEqual(self.page.get_by_label("Name", exact=True).input_value(), "")
 
+    def test_visual_click_typing_and_stale_images(self):
+        image = self.act("capture_screenshot").data
+        bounds = self.page.locator("#visual").bounding_box()
+        self.act("click_coordinates", x=bounds["x"] + 30, y=bounds["y"] + 20, screenshot_id=image["screenshot_id"])
+        self.assertTrue(self.page.evaluate("window.visualClicked"))
+        self.backend.observe()
+        image = self.act("capture_screenshot").data
+        bounds = self.page.get_by_label("Name", exact=True).bounding_box()
+        self.act("click_coordinates", x=bounds["x"] + 20, y=bounds["y"] + 10, screenshot_id=image["screenshot_id"])
+        self.backend.observe()  # Focus identity may survive a new semantic observation.
+        self.act("type_focused", text="Visual typing", screenshot_id=image["screenshot_id"])
+        self.assertEqual(self.page.get_by_label("Name", exact=True).input_value(), "Visual typing")
+        self.backend.observe()
+        image = self.act("capture_screenshot").data
+        self.page.evaluate("document.querySelector('#status').textContent='Page changed'")
+        result = self.backend.execute(ActionRequest("click_coordinates", {"x": 20, "y": 20, "screenshot_id": image["screenshot_id"]}))
+        self.assertEqual(result.code, "stale_screenshot")
+
+    def test_coordinate_space_is_css_pixels_at_high_dpi(self):
+        context = self.session.browser.new_context(viewport={"width": 900, "height": 700}, device_scale_factor=2)
+        original = self.page
+        try:
+            self.page = context.new_page()
+            self.session.select(self.page)
+            self.page.goto(self.base + "/controls.html")
+            self.backend = BrowserBackend(self.session)
+            self.backend.observe()
+            image = self.act("capture_screenshot").data
+            self.assertEqual(image["width"], 900)
+            bounds = self.page.locator("#visual").bounding_box()
+            self.act("click_coordinates", x=bounds["x"] + 20, y=bounds["y"] + 20, screenshot_id=image["screenshot_id"])
+            self.assertTrue(self.page.evaluate("window.visualClicked"))
+        finally:
+            context.close()
+            self.page = original
+            self.session.select(original)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

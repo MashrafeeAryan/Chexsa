@@ -10,6 +10,7 @@ from .models import BrowserError, Observation
 from .regions import group_regions
 from .session import BrowserSession
 from .targets import TargetRegistry
+from .visual import VisualTargeting
 
 
 class BrowserBackend:
@@ -22,6 +23,10 @@ class BrowserBackend:
         self.view = ContextView(context_budget)
         self.executor = Executor(self)
         self._change_counter = None
+        self.visual = VisualTargeting(self)
+
+    def capture_screenshot(self):
+        return self.visual.capture()
 
     def connect(self):
         self.session.connect()
