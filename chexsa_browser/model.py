@@ -74,6 +74,14 @@ class BrowserModel:
         if intent not in ("act", "draft"):
             raise BrowserError("invalid_model_output", "Unknown task intent.")
         inputs = data.get("inputs", {})
+        email_task = bool(re.search(r"\be-?mail\b", request, re.I)) or "recipient" in inputs
+        if email_task:
+            # Missing data must lead to clarification/preflight, never bypass email checks.
+            inputs.setdefault("recipient", "")
+            inputs.setdefault("body", "")
+            inputs.setdefault("subject", "")
+        if re.search(r"\bdraft\b", request, re.I) and not re.search(r"\bsend\b", request, re.I):
+            intent = "draft"
         emails = re.findall(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", request)
         if "recipient" in inputs and len(emails) == 1:
             inputs["recipient"] = emails[0].rstrip(".,")
@@ -101,7 +109,7 @@ class BrowserModel:
         if result:
             prompt += "\nACTION RESULT (not completion evidence):\n" + json.dumps(result.__dict__)
         data = self._ask(prompt, after.screenshot)
-        if type(data.get("complete")) is not bool or not isinstance(data.get("progress", ""), str) or not isinstance(data.get("reason", ""), str) or not isinstance(data.get("evidence"), list) or any(not isinstance(s, str) for s in data["evidence"]):
+        if type(data.get("complete")) is not bool or type(data.get("failed", False)) is not bool or data.get("failed") and data.get("complete") or not isinstance(data.get("progress", ""), str) or not isinstance(data.get("reason", ""), str) or not isinstance(data.get("evidence"), list) or any(not isinstance(s, str) for s in data["evidence"]):
             raise BrowserError("invalid_model_output", "Malformed verification result.")
         return data
 

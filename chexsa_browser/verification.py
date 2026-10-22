@@ -22,11 +22,13 @@ def is_submission(request, observation):
     if request.action == "click":
         element = next((e for e in observation.elements if e.ref == request.arguments.get("ref")), None)
         return bool(element and re.match(r"^(send|submit|publish|purchase|place order|confirm payment)\b", element.name, re.I))
+    if request.action == "press_key":
+        return request.arguments.get("key", "").lower() in ("control+enter", "controlormeta+enter", "meta+enter", "ctrl+enter")
     return False
 
 
 def preflight_email(state, observation, backend, model, request=None):
-    if "recipient" not in state.spec.inputs or "body" not in state.spec.inputs:
+    if not state.spec.inputs.get("recipient") or not state.spec.inputs.get("body"):
         raise BrowserError("missing_information", "The email plan needs an explicit recipient and message before sending.")
     report = model.preflight(state, observation)
     if not report["ready"]:

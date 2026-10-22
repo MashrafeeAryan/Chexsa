@@ -26,3 +26,10 @@ class ModelTests(unittest.TestCase):
         for text in ('[]', 'null', '```json {} ```'):
             with self.assertRaises(BrowserError):
                 parse_object(text)
+
+    def test_incomplete_email_plan_cannot_bypass_preflight(self):
+        self.model._ask = lambda *args: {"inputs": {}, "subgoals": ["compose"], "completion": ["draft exists"], "intent": "act"}
+        spec = self.model.plan("draft an email to intended@example.test", self.observation)
+        self.assertEqual(spec.intent, "draft")
+        self.assertEqual(spec.inputs["recipient"], "intended@example.test")
+        self.assertIn("body", spec.inputs)
