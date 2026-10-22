@@ -2,6 +2,8 @@
 
 ### Your personal AI that can use your computer.
 
+For a simple explanation of every project file, read [file_use.md](file_use.md).
+
 Chexsa is an open-source AI assistant that is being built to **see what is happening on your computer and take actions for you**.
 
 Instead of only answering questions, Chexsa can work through a task step by step.
