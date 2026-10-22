@@ -79,7 +79,9 @@ The desktop agent reads Windows apps and controls, asks the LLM what desktop act
 flowchart TD
     Request["User Request"] --> State["Browser State"]
 
-    State --> Inputs["Inputs sent to LLM<br/><br/>URL<br/>Page title<br/>Open tabs<br/>Filtered ARIA<br/>Visible text<br/>Screenshot<br/>Previous actions"]
+    State --> Compare["Compare with previous state"]
+
+    Compare --> Inputs["Inputs sent to LLM<br/><br/>First step: compact page state<br/>Later: current controls + changes<br/>Screenshot<br/>Previous actions"]
 
     Inputs --> LLM["LLM<br/>chooses next browser action"]
 
@@ -96,16 +98,28 @@ flowchart TD
 
 ## Browser input
 
-The browser agent currently gives the LLM:
+On the first step, the browser agent gives the LLM:
 
 - the user's request
 - current URL
 - page title
 - open browser tabs
 - useful ARIA controls
-- visible page text
+- limited visible page text
 - screenshot of the visible browser area
-- previous actions from the current task
+
+After Chexsa performs an action, it compares the new browser state with the previous state.
+
+Later steps send:
+
+- current URL and title
+- a small current control list
+- controls that were added or removed
+- visible text that was added or removed
+- screenshot
+- previous actions
+
+Chexsa can read a larger filtered state locally to find changes, but it does **not** send that whole state to the LLM. This matters on large pages such as Gmail.
 
 Example:
 
@@ -144,7 +158,7 @@ Example:
 }
 ```
 
-Chexsa performs that action, reads the browser again, and repeats until the model says the task is complete.
+Chexsa performs that action, reads the browser again, compares it with the previous state, and repeats until the model says the task is complete.
 
 ---
 
