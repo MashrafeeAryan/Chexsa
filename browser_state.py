@@ -199,6 +199,7 @@ class BrowserState:
         matches = self.get_page().get_by_role(
             element.role,
             name=element.name,
+            exact=True,
         )
         count = matches.count()
 
