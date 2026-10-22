@@ -3,12 +3,12 @@
 from pathlib import Path
 from typing import Any, Callable
 
-from playwright.sync_api import Page
+from playwright.sync_api import Locator, Page
 
 
-# BrowserActions asks BrowserState for the page that is currently open.
 GetPageFn = Callable[[], Page]
 SetPageFn = Callable[[Page], None]
+GetElementFn = Callable[[str], Locator]
 
 
 class BrowserActions:
@@ -18,9 +18,11 @@ class BrowserActions:
         self,
         get_page: GetPageFn,
         set_page: SetPageFn,
+        get_element: GetElementFn,
     ) -> None:
         self.get_page = get_page
         self.set_page = set_page
+        self.get_element = get_element
 
     def execute(
         self,
@@ -50,7 +52,6 @@ class BrowserActions:
             raise ValueError(f"Unknown browser action: {action}")
 
         return actions[action](**arguments)
-
 
     def batch(self, actions: list[dict[str, Any]]) -> list[Any]:
         """Run simple actions that do not change the page."""
@@ -84,65 +85,60 @@ class BrowserActions:
 
         return page.url
 
-    def click(self, role: str, name: str) -> str:
-        """Click an element using its ARIA role and visible name."""
+    def click(self, ref: str) -> str:
+        """Click the browser element from the latest observation."""
 
-        element = self._get_element(role, name)
-        element.click()
+        self.get_element(ref).click()
 
-        return f'Clicked {role} "{name}"'
+        return f"Clicked {ref}"
 
     def type_text(
         self,
-        role: str,
-        name: str,
+        ref: str,
         text: str,
         press_enter: bool = False,
     ) -> str:
-        """Put text into an input found by its role and name."""
+        """Put text into a browser element from the latest observation."""
 
-        element = self._get_element(role, name)
+        element = self.get_element(ref)
         element.fill(text)
 
         if press_enter:
             element.press("Enter")
 
-        return f'Entered text into {role} "{name}"'
+        return f"Entered text into {ref}"
 
     def press_key(self, key: str) -> str:
         """Press a keyboard key on the current page."""
 
-        page = self.get_page()
-        page.keyboard.press(key)
+        self.get_page().keyboard.press(key)
 
         return f"Pressed {key}"
 
     def select_option(
         self,
-        role: str,
-        name: str,
+        ref: str,
         option: str,
     ) -> str:
-        """Choose an option from a select control."""
+        """Choose an option from a browser element."""
 
-        element = self._get_element(role, name)
-        element.select_option(label=option)
+        self.get_element(ref).select_option(label=option)
 
-        return f'Selected "{option}" from {role} "{name}"'
+        return f'Selected "{option}" from {ref}'
 
-    def check(self, role: str, name: str) -> str:
+    def check(self, ref: str) -> str:
         """Check a checkbox or radio control."""
 
-        self._get_element(role, name).check()
+        self.get_element(ref).check()
 
-        return f'Checked {role} "{name}"'
+        return f"Checked {ref}"
 
-    def uncheck(self, role: str, name: str) -> str:
+    def uncheck(self, ref: str) -> str:
         """Uncheck a checkbox."""
 
-        self._get_element(role, name).uncheck()
+        self.get_element(ref).uncheck()
 
-        return f'Unchecked {role} "{name}"'
+        return f"Unchecked {ref}"
 
     def go_back(self) -> str:
         """Go back one page in browser history."""
@@ -197,26 +193,9 @@ class BrowserActions:
     def scroll(self, amount: int = 600) -> str:
         """Scroll the current page up or down."""
 
-        page = self.get_page()
-
-        # Positive scrolls down; negative scrolls up.
-        page.mouse.wheel(0, amount)
+        self.get_page().mouse.wheel(0, amount)
 
         return f"Scrolled {amount} pixels"
-
-
-    def _get_element(self, role: str, name: str):
-        """Find one browser element by role and name."""
-
-        element = self.get_page().get_by_role(role, name=name)
-        count = element.count()
-
-        if count != 1:
-            raise RuntimeError(
-                f'Expected one {role} "{name}", found {count}.'
-            )
-
-        return element
 
     def upload_file(
         self,
