@@ -79,3 +79,12 @@ class BrowserAgentTests(unittest.TestCase):
         self.assertFalse(failure_is_supported(state, observation, verdict))
         observation.text["error"] = {"text": "server refused", "region_path": ()}
         self.assertTrue(failure_is_supported(state, observation, verdict))
+
+    def test_visual_completion_requires_the_current_screenshot(self):
+        state = TaskState("t", TaskSpec("inspect visual result"))
+        observation = FakeBackend().observation
+        observation.screenshot, observation.screenshot_id = b"captured image", "fresh"
+        verdict = {"complete": True, "evidence": [], "visual_evidence": True, "screenshot_id": "old"}
+        self.assertFalse(completion_is_supported(state, observation, verdict))
+        verdict["screenshot_id"] = "fresh"
+        self.assertTrue(completion_is_supported(state, observation, verdict))

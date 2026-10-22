@@ -98,6 +98,7 @@ class TaskState:
     commit_baseline: str = ""
     email_checked: bool = False
     result_message: str = ""
+    commit_image_hash: str = ""
 
 
 @dataclass

@@ -14,7 +14,7 @@ from .visual import VisualTargeting
 
 
 class BrowserBackend:
-    def __init__(self, session=None, context_budget=12000, **session_options):
+    def __init__(self, session=None, context_budget=12000, trace_screenshots=False, **session_options):
         self.session = session or BrowserSession(**session_options)
         self.registry = TargetRegistry(self.session)
         self.collector = Collector(self.session)
@@ -25,6 +25,7 @@ class BrowserBackend:
         self._change_counter = None
         self.visual = VisualTargeting(self)
         self.task_journal = None
+        self.trace_screenshots = trace_screenshots
 
     def capture_screenshot(self):
         return self.visual.capture()

@@ -2,6 +2,7 @@
 
 import time
 import uuid
+import hashlib
 
 from .actions import DISCOVERY
 from .models import BrowserError, TaskResult, TaskState
@@ -90,6 +91,8 @@ class BrowserAgent:
                         if self.state.submission == "uncertain":
                             self.backend.wait_for_change()
                         current = self.backend.observe()
+                        if observation.screenshot:
+                            self.backend.capture_screenshot()
                         verdict = self.model.verify(self.state, previous or observation, current)
                         if self.state.spec.intent == "draft" and "recipient" in self.state.spec.inputs:
                             preflight_email(self.state, current, self.backend, self.model)
@@ -121,6 +124,7 @@ class BrowserAgent:
                         if "recipient" in self.state.spec.inputs:
                             preflight_email(self.state, observation, self.backend, self.model, action)
                         self.state.commit_baseline = evidence_text(observation)
+                        self.state.commit_image_hash = hashlib.sha256(observation.screenshot).hexdigest() if observation.screenshot else ""
                         self.state.submission = "attempting"
                         self._save()  # Persist BEFORE dispatch, not after.
                     result = self.backend.execute(action)
@@ -135,6 +139,8 @@ class BrowserAgent:
                     else:
                         self.backend.wait_for_change()
                         previous, observation = observation, self.backend.observe()
+                        if previous.screenshot and action.action not in ("navigate", "go_back", "new_tab", "close_tab", "switch_tab"):
+                            self.backend.capture_screenshot()
                         if result.data.get("verified"):
                             self.state.progress.append(f"Verified {action.action} against the actual control state.")
                         if submission and result.executed:

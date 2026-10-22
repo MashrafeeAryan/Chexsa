@@ -1,6 +1,7 @@
 """Deterministic evidence checks around independent model assessments."""
 
 import re
+import hashlib
 
 from .models import BrowserError
 
@@ -70,12 +71,14 @@ def preflight_email(state, observation, backend, model, request=None):
 def completion_is_supported(state, observation, verdict):
     quotes = verdict.get("evidence", [])
     actual = evidence_text(observation)
-    if not verdict.get("complete") or not quotes or any(not quote.strip() or quote not in actual for quote in quotes):
+    text_proof = bool(quotes) and all(quote.strip() and quote in actual for quote in quotes)
+    visual_proof = bool(observation.screenshot) and verdict.get("visual_evidence") is True and verdict.get("screenshot_id") == observation.screenshot_id
+    if not verdict.get("complete") or not (text_proof or visual_proof):
         return False
     if "recipient" in state.spec.inputs and state.spec.intent != "draft":
         return state.email_checked and state.submission != "none" and any(quote not in state.commit_baseline for quote in quotes)
     if state.submission != "none":
-        return any(quote not in state.commit_baseline for quote in quotes)
+        return any(quote not in state.commit_baseline for quote in quotes) or visual_proof and bool(state.commit_image_hash) and state.commit_image_hash != hashlib.sha256(observation.screenshot).hexdigest()
     return True
 
 

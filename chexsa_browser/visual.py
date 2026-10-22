@@ -28,6 +28,10 @@ class VisualTargeting:
         screenshot_id = uuid.uuid4().hex
         self.ticket = {"id": screenshot_id, "observation": observation.id, "page": self.backend.session.page_id, "epochs": dict(self.backend.session.epochs), "viewport": self._viewport(), "digest": hashlib.sha256(image).hexdigest()}
         observation.screenshot, observation.screenshot_id = image, screenshot_id
+        if self.backend.trace_screenshots and self.backend.task_journal:
+            directory = self.backend.task_journal.path.parent / "screenshots"
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / f"{screenshot_id}.jpg").write_bytes(image)
         metadata = {"screenshot_id": screenshot_id, "width": self.ticket["viewport"]["width"], "height": self.ticket["viewport"]["height"], "coordinate_space": "CSS pixels, viewport origin"}
         self.backend.view.render(observation, metadata)
         return metadata
