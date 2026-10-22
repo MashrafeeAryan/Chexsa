@@ -1,0 +1,137 @@
+"""Bounded complete records, local search, and explicit observation-scoped paging."""
+
+import json
+
+from .models import BrowserError
+
+
+def short(value, limit):
+    value = str(value)
+    return value if len(value) <= limit else value[:limit] + "… [expand with inspect_region]"
+
+
+def record(element):
+    return {"ref": element.ref, "role": element.role, "name": short(element.name, 180), "value": short(element.value, 300), "state": {k: v for k, v in element.states.items() if k in ("disabled", "readonly", "checked", "expanded", "selected", "focused", "required", "invalid")}, "actions": element.capabilities, "context": short(" > ".join(element.context), 240)}
+
+
+def changes(previous, current):
+    if previous is None:
+        return ["Initial page state."]
+    result = []
+    # Text has stable node keys; equal strings in different controls are not merged.
+    for key, item in current.text.items():
+        if previous.text.get(key) != item:
+            result.append("Added/changed text: " + short(item["text"], 350))
+    before = {e.identity: e for e in previous.elements}
+    after = {e.identity: e for e in current.elements}
+    for key, element in after.items():
+        if key not in before or before[key].signature() != element.signature():
+            result.append("Control: " + json.dumps(record(element), ensure_ascii=False))
+    for key, element in before.items():
+        if key not in after:
+            result.append(f"Removed: {element.role} {short(element.name, 150)}")
+    return result or ["No visible changes."]
+
+
+class ContextView:
+    def __init__(self, budget=12000):
+        if budget < 2000:
+            raise ValueError("Page context budget must be at least 2000 characters.")
+        self.budget = budget
+        self.selected = None
+
+    def _offset(self, observation, cursor):
+        if not cursor:
+            return 0
+        try:
+            generation, value = cursor.rsplit(":", 1)
+            offset = int(value)
+            if generation != observation.id or offset < 0:
+                raise ValueError
+            return offset
+        except (ValueError, AttributeError):
+            raise BrowserError("stale_cursor", "The continuation cursor is invalid or belongs to an old observation.")
+
+    def page(self, observation, elements, cursor=None, budget=None):
+        start = self._offset(observation, cursor)
+        records, used = [], 0
+        for element in elements[start:]:
+            item = record(element)
+            size = len(json.dumps(item, ensure_ascii=False)) + 2
+            if used + size > (budget or self.budget // 2):
+                break
+            records.append(item)
+            used += size
+        end = start + len(records)
+        return {"observation_id": observation.id, "elements": records, "omitted": max(0, len(elements) - end), "next_cursor": f"{observation.id}:{end}" if end < len(elements) else None}
+
+    def find(self, observation, query, cursor=None):
+        if not isinstance(query, str) or len(query) > 1000:
+            raise BrowserError("invalid_arguments", "Search query must be a string of at most 1000 characters.")
+        words = query.casefold().split()
+        matches = [e for e in observation.elements if all(word in f"{e.role} {e.name} {' '.join(e.context)}".casefold() for word in words)]
+        return self.page(observation, matches, cursor)
+
+    def inspect(self, observation, ref="page", cursor=None):
+        region = next((r for r in observation.regions if r.ref == ref or r.key == ref), None)
+        if region:
+            self.selected = region.key
+            return self.page(observation, [e for e in region.elements if e.capabilities or e.role in ("heading", "status", "alert")], cursor)
+        element = next((e for e in observation.elements if e.ref == ref), None)
+        if not element:
+            raise BrowserError("stale_target", "Unknown region or element. Observe again.")
+        offset = self._offset(observation, cursor)
+        raw = json.dumps({"name": element.name, "value": element.value, "context": element.context}, ensure_ascii=False)
+        chunk = raw[offset:offset + self.budget // 2]
+        end = offset + len(chunk)
+        return {"ref": ref, "observation_id": observation.id, "text_chunk": chunk, "next_cursor": f"{observation.id}:{end}" if end < len(raw) else None}
+
+    def render(self, observation, discovery=None):
+        region = next((r for r in observation.regions if r.key == self.selected), None)
+        # A newly focused form/dialog takes precedence over a previously inspected inbox.
+        if observation.regions and (region is None or observation.regions[0].priority >= 100):
+            region = observation.regions[0]
+        self.selected = region.key if region else None
+        overview = [{"ref": r.ref, "label": short(r.label, 160), "controls": sum(bool(e.capabilities) for e in r.elements)} for r in observation.regions[:12]]
+        data = {"observation_id": observation.id, "page_id": observation.page_id, "url": short(observation.url, 500), "title": short(observation.title, 180), "tabs": [{**tab, "title": short(tab["title"], 100), "url": short(tab["url"], 180)} for tab in observation.tabs[:12]], "tabs_omitted": max(0, len(observation.tabs) - 12), "regions": overview, "regions_omitted": max(0, len(observation.regions) - 12), "focused_region": region.ref if region else "page", "issues": observation.issues[:5]}
+        # Reserve space for changes and text; never cut serialized control records.
+        controls = [e for e in region.elements if e.capabilities or e.role in ("heading", "status", "alert")] if region else []
+        data["controls"] = self.page(observation, controls, budget=self.budget // 3)
+        data["changes"] = []
+        data["text"] = []
+        if discovery is not None:
+            data["discovery"] = discovery
+        for change in observation.changes:
+            candidate = data["changes"] + [change]
+            if len(json.dumps({**data, "changes": candidate}, ensure_ascii=False)) > self.budget - 700:
+                break
+            data["changes"] = candidate
+        data["changes_omitted"] = max(0, len(observation.changes) - len(data["changes"]))
+        for item in observation.text.values():
+            if region and region.key != "page" and region.key not in item["region_path"]:
+                continue
+            candidate = data["text"] + [short(item["text"], 350)]
+            if len(json.dumps({**data, "text": candidate}, ensure_ascii=False)) > self.budget:
+                break
+            data["text"] = candidate
+        # Search results can use half a budget; shrink overview/controls to accommodate.
+        while len(json.dumps(data, ensure_ascii=False)) > self.budget:
+            if data["changes"]:
+                data["changes"].pop()
+                data["changes_omitted"] += 1
+            elif data["text"]:
+                data["text"].pop()
+            elif data["regions"]:
+                data["regions"].pop()
+                data["regions_omitted"] += 1
+            elif data["controls"]["elements"]:
+                data["controls"]["elements"].pop()
+                data["controls"]["omitted"] += 1
+                data["controls"]["next_cursor"] = f'{observation.id}:{len(data["controls"]["elements"])}'
+            elif data["tabs"]:
+                data["tabs"].pop()
+                data["tabs_omitted"] += 1
+            else:
+                break
+        observation.context = json.dumps(data, ensure_ascii=False)
+        return observation.context

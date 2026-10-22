@@ -2,6 +2,7 @@
 
 import hashlib
 from .collector import Collector
+from .context import ContextView, changes
 from .models import BrowserError, Observation
 from .regions import group_regions
 from .session import BrowserSession
@@ -9,12 +10,13 @@ from .targets import TargetRegistry
 
 
 class BrowserBackend:
-    def __init__(self, session=None, **session_options):
+    def __init__(self, session=None, context_budget=12000, **session_options):
         self.session = session or BrowserSession(**session_options)
         self.registry = TargetRegistry(self.session)
         self.collector = Collector(self.session)
         self.observation = None
         self.sequence = 0
+        self.view = ContextView(context_budget)
 
     def connect(self):
         self.session.connect()
@@ -32,6 +34,8 @@ class BrowserBackend:
         fingerprint = hashlib.sha256(repr((page.url, [(e.identity, e.signature()) for e in elements], text)).encode()).hexdigest()
         result = Observation(f"o{self.sequence}", self.session.page_id, page.url, page.title(), tabs, elements, text, issues, fingerprint=fingerprint)
         result.regions = group_regions(elements, self.observation)
+        result.changes = changes(self.observation, result)
+        self.view.render(result)
         self.observation = result
         return result
 
