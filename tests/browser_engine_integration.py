@@ -128,8 +128,8 @@ class BrowserIntegration(unittest.TestCase):
             directory = Path(".chexsa/fixture-diagnostics") / self._testMethodName
             directory.mkdir(parents=True, exist_ok=True)
             for index, image in enumerate(self._fixture_images):
-                (directory / f"frame-{index}.jpg").write_bytes(image)
-            (directory / "observed.jpg").write_bytes(self.backend.observation.screenshot)
+                (directory / f"frame-{index}.png").write_bytes(image)
+            (directory / "observed.png").write_bytes(self.backend.observation.screenshot)
             (directory / "metadata.json").write_text(json.dumps({"ticket": self.backend.visual.ticket, "viewport": self.backend.visual._viewport(), "result": str(result)}, indent=2), encoding="utf-8")
         self.assertEqual(result.status, "ok", result)
         return result
@@ -281,6 +281,7 @@ class BrowserIntegration(unittest.TestCase):
             self.backend.observe()
             image = self.act("capture_screenshot").data
             self.assertEqual(image["width"], 900)
+            self.assertTrue(self.backend.observation.screenshot.startswith(b"\x89PNG\r\n\x1a\n"))
             bounds = self.page.locator("#visual").bounding_box()
             self.act("click_coordinates", x=bounds["x"] + 20, y=bounds["y"] + 20, screenshot_id=image["screenshot_id"])
             self.assertTrue(self.page.evaluate("window.visualClicked"))

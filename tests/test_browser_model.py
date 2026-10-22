@@ -47,3 +47,9 @@ class ModelTests(unittest.TestCase):
                     client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"result":"ok"}'))], usage=SimpleNamespace(prompt_tokens=12, completion_tokens=3))
                 self.assertEqual(model._ask("Return JSON", b"image bytes"), {"result": "ok"})
                 self.assertEqual(model.usage, {"calls": 1, "input_tokens": 12, "output_tokens": 3})
+                if provider == "gemini":
+                    arguments = client.models.generate_content.call_args.kwargs
+                    self.assertEqual(arguments["contents"][1].inline_data.mime_type, "image/png")
+                else:
+                    arguments = client.chat.completions.create.call_args.kwargs
+                    self.assertTrue(arguments["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/png;base64,"))

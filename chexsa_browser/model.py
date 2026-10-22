@@ -43,7 +43,7 @@ class BrowserModel:
             from google.genai import types
             contents = [prompt]
             if screenshot:
-                contents.append(types.Part.from_bytes(data=screenshot, mime_type="image/jpeg"))
+                contents.append(types.Part.from_bytes(data=screenshot, mime_type="image/png"))
             response = self.llm.client.models.generate_content(model=self.llm.model, contents=contents, config={"response_mime_type": "application/json", "http_options": {"timeout": 60000}})
             usage = response.usage_metadata
             if usage:
@@ -53,7 +53,7 @@ class BrowserModel:
         content = [{"type": "text", "text": prompt}]
         if screenshot:
             import base64
-            content.append({"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(screenshot).decode()}})
+            content.append({"type": "image_url", "image_url": {"url": "data:image/png;base64," + base64.b64encode(screenshot).decode()}})
         response = self.llm.client.chat.completions.create(model=self.llm.model, messages=[{"role": "user", "content": content}], response_format={"type": "json_object"}, timeout=60)
         if response.usage:
             self.usage["input_tokens"] += response.usage.prompt_tokens or 0

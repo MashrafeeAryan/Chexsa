@@ -6,7 +6,7 @@ import uuid
 from .models import BrowserError
 
 
-OPTIONS = {"type": "jpeg", "quality": 55, "full_page": False, "scale": "css", "animations": "disabled", "caret": "hide"}
+OPTIONS = {"type": "png", "full_page": False, "scale": "css", "animations": "disabled", "caret": "hide"}
 ACTIVE = """(() => {let e=document.activeElement;for(let i=0;e&&i<20;i++){if(e.shadowRoot?.activeElement)e=e.shadowRoot.activeElement;else if(e.tagName==='IFRAME'&&e.contentDocument?.activeElement)e=e.contentDocument.activeElement;else break;}return e;})()"""
 
 
@@ -45,7 +45,7 @@ class VisualTargeting:
         if self.backend.trace_screenshots and self.backend.task_journal:
             directory = self.backend.task_journal.path.parent / "screenshots"
             directory.mkdir(parents=True, exist_ok=True)
-            (directory / f"{screenshot_id}.jpg").write_bytes(image)
+            (directory / f"{screenshot_id}.png").write_bytes(image)
         metadata = {"screenshot_id": screenshot_id, "width": self.ticket["viewport"]["width"], "height": self.ticket["viewport"]["height"], "coordinate_space": "CSS pixels, viewport origin"}
         self.backend.view.render(observation, metadata)
         return metadata
