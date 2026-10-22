@@ -119,6 +119,35 @@ class BrowserStateTests(unittest.TestCase):
 
         self.assertIn("Message sent", changes)
 
+    def test_duplicate_controls_get_different_refs(self):
+        """Duplicate names should still be separately targetable."""
+
+        state = BrowserState()
+        elements = state._build_element_refs(
+            '- dialog "New Message":\n'
+            '  - button "Send"\n'
+            '- main "Inbox":\n'
+            '  - button "Send"\n'
+        )
+
+        self.assertEqual(elements[0].ref, "e1")
+        self.assertEqual(elements[1].ref, "e2")
+        self.assertEqual(elements[0].occurrence, 0)
+        self.assertEqual(elements[1].occurrence, 1)
+        self.assertIn('dialog "New Message"', elements[0].context)
+        self.assertIn('main "Inbox"', elements[1].context)
+
+    def test_unknown_element_ref_is_rejected(self):
+        """Old or invented refs should fail before an action runs."""
+
+        state = BrowserState()
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            'Unknown browser element ref "e99"',
+        ):
+            state.get_element("e99")
+
 
 if __name__ == "__main__":
     unittest.main()
