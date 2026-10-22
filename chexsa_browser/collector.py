@@ -72,6 +72,8 @@ def parse_document(target_id, frame_id, document_id, document, strings, ax_nodes
         props = {p["name"]: p.get("value", {}).get("value") for p in ax.get("properties", [])}
         props.update(disabled=bool(props.get("disabled") or "disabled" in attrs), readonly=bool(props.get("readonly") or "readonly" in attrs))
         name = str(ax.get("name", {}).get("value", ""))
+        if ax and not ax.get("ignored"):
+            props.update(_ax_role=role, _ax_name=name)
         context, region_path = ancestry(ax)
         caps = capabilities(role, tag, attrs, props, index in clickable)
         file_input = "upload_file" in caps

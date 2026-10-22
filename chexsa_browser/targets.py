@@ -81,6 +81,12 @@ class TargetRegistry:
             if capability and (details["disabled"] or capability == "type" and details["readonly"]):
                 target.close()
                 raise BrowserError("blocked", "The observed control is disabled or read-only.")
+            if capability and "_ax_role" in element.states:
+                current = client.send("Accessibility.getPartialAXTree", {"backendNodeId": element.node_id}).get("nodes", [])
+                ax = next((node for node in current if node.get("backendDOMNodeId") == element.node_id), None)
+                if not ax or ax.get("ignored") or ax.get("role", {}).get("value", "").lower() != element.states["_ax_role"] or ax.get("name", {}).get("value", "") != element.states["_ax_name"]:
+                    target.close()
+                    raise BrowserError("stale_target", "The control's role or accessible name changed. Observe again.")
             return target
         except BrowserError:
             raise

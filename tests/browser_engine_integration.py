@@ -136,6 +136,27 @@ class BrowserIntegration(unittest.TestCase):
         self.assertEqual(self.page.get_by_role("textbox", name="Name", exact=True).input_value(), "")
         self.assertEqual(self.backend.execute(ActionRequest("click", {"ref": "invented"})).code, "stale_target")
 
+    def test_same_node_renamed_and_empty_observation_are_safe(self):
+        send = next(e for e in self.backend.observation.elements if e.role == "button" and e.name == "Send")
+        self.page.locator("#first").evaluate("e=>e.textContent='Delete'")
+        self.assertEqual(self.backend.execute(ActionRequest("click", {"ref": send.ref})).code, "stale_target")
+        self.assertIsNone(self.page.locator("#first").get_attribute("data-clicked"))
+        self.page.set_content("<p>No controls</p>")
+        self.backend.observe()
+        self.assertFalse(self.backend.registry.refs)
+
+    def test_cross_origin_frame_controls(self):
+        url = self.base.replace("127.0.0.1", "localhost") + "/frame.html"
+        with self.page.expect_event("framenavigated", predicate=lambda frame: "localhost" in frame.url):
+            self.page.locator("iframe").evaluate("(e,url)=>e.src=url", url)
+        frame = next(frame for frame in self.page.frames if "localhost" in frame.url)
+        frame.wait_for_load_state("domcontentloaded")
+        self.backend.observe()
+        self.act("type", ref=self.element("Frame value").ref, text="Cross origin")
+        self.act("click", ref=self.element("Frame action").ref)
+        self.assertEqual(frame.get_by_role("textbox").input_value(), "Cross origin")
+        self.assertEqual(frame.get_by_role("button").get_attribute("data-clicked"), "yes")
+
     def test_form_actions_shadow_dom_frame_and_upload(self):
         self.act("type", ref=self.element("Name").ref, text="Literal {text} + unicode café")
         self.act("select_option", ref=self.element("Colour", "combobox").ref, option="Red")

@@ -64,3 +64,16 @@ class TargetTests(unittest.TestCase):
         with self.assertRaisesRegex(BrowserError, "does not support type"):
             self.registry.resolve(element.ref, "type")
         self.assertFalse(self.client.calls)
+
+    def test_same_node_renamed_to_another_action_is_stale(self):
+        element = self.element(11)
+        element.states.update(_ax_role="button", _ax_name="Send")
+        original = self.client.send
+        def send(method, arguments):
+            if method == "Accessibility.getPartialAXTree":
+                return {"nodes": [{"backendDOMNodeId": 11, "role": {"value": "button"}, "name": {"value": "Delete"}}]}
+            return original(method, arguments)
+        self.client.send = send
+        self.registry.bind([element])
+        with self.assertRaisesRegex(BrowserError, "accessible name changed"):
+            self.registry.resolve(element.ref, "click")
