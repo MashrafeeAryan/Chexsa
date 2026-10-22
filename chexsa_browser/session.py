@@ -14,9 +14,12 @@ from .models import BrowserError
 
 
 class BrowserSession:
-    def __init__(self, cdp_url="http://127.0.0.1:9222", auto_launch=False):
+    def __init__(self, cdp_url="http://127.0.0.1:9222", auto_launch=False, profile_dir=None, headless=False):
         self.cdp_url = cdp_url
         self.auto_launch = auto_launch
+        self.profile_dir = Path(profile_dir).expanduser() if profile_dir else None
+        self.headless = headless
+        self.launched_process = None
         self.playwright = None
         self.browser = None
         self.page = None
@@ -27,8 +30,10 @@ class BrowserSession:
         self._page_ids = {}
 
     def connect(self):
-        if self.browser:
+        if self.browser and self.browser.is_connected():
             return
+        if self.playwright:
+            self.close()
         self.playwright = sync_playwright().start()
         try:
             self.browser = self.playwright.chromium.connect_over_cdp(self.cdp_url)
@@ -38,12 +43,7 @@ class BrowserSession:
                 raise BrowserError("not_connected", "Start Chrome with CDP on port 9222, or enable auto launch.")
             self._launch()
             self.browser = self.playwright.chromium.connect_over_cdp(self.cdp_url)
-        pages = [p for context in self.browser.contexts for p in context.pages]
-        if not pages:
-            self.page = self.browser.contexts[0].new_page()
-        else:
-            self.page = next((p for p in pages if p.evaluate("document.hasFocus()")), pages[-1])
-        self.select(self.page)
+        self.ensure_page()
 
     def _launch(self):
         parsed = urlparse(self.cdp_url)
@@ -53,9 +53,13 @@ class BrowserSession:
         executable = next((p for p in candidates if p and Path(p).exists()), None)
         if not executable:
             raise BrowserError("not_connected", "Chrome was not found.")
-        profile = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "Chexsa" / "chrome"
+        profile = self.profile_dir or Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "Chexsa" / "chrome"
         profile.mkdir(parents=True, exist_ok=True)
-        subprocess.Popen([executable, f"--remote-debugging-port={parsed.port or 9222}", f"--user-data-dir={profile}"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        command = [executable, f"--remote-debugging-port={parsed.port or 9222}", f"--user-data-dir={profile}", "--profile-directory=Default", "--no-first-run", "--no-default-browser-check"]
+        if self.headless:
+            command.append("--headless=new")
+        command.append("about:blank")
+        self.launched_process = subprocess.Popen(command, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             try:
@@ -67,8 +71,38 @@ class BrowserSession:
 
     def get_page(self):
         if self.page is None or self.page.is_closed():
-            raise BrowserError("page_closed", "The observed tab is closed. Select an open tab.")
+            raise BrowserError("page_closed", "The selected tab closed. Observe again to select an open tab.")
         return self.page
+
+    def ensure_page(self):
+        """Recover a live tab only at observation boundaries, never during an action."""
+        if self.browser is None or not self.browser.is_connected():
+            self.connect()
+        if self.page is not None and not self.page.is_closed():
+            return self.page
+        for _ in range(3):
+            pages = self.pages()
+            preferred = [page for page in pages if page.url.startswith(("http:", "https:", "file:", "about:"))] or pages
+            ordered = list(reversed(preferred))
+            for page in ordered:
+                try:
+                    if page.evaluate("document.hasFocus()"):
+                        ordered = [page] + [other for other in ordered if other is not page]
+                        break
+                except Exception:
+                    continue  # A startup tab may disappear while Chrome opens another tab.
+            for page in ordered:
+                try:
+                    self.select(page)
+                    return self.get_page()
+                except Exception:
+                    continue
+            try:
+                self.select(self.browser.contexts[0].new_page())
+                return self.get_page()
+            except Exception:
+                continue
+        raise BrowserError("page_closed", "Chrome has no available tab. Open a tab and retry the task.")
 
     def select(self, page):
         self.page = page
@@ -129,7 +163,14 @@ class BrowserSession:
         return [(target, self.clients[target]) for target in sorted(found)]
 
     def tabs(self):
-        return [{"index": i, "page_id": self.page_identifier(page), "title": page.title(), "url": page.url} for i, page in enumerate(self.pages())]
+        tabs = []
+        for index, page in enumerate(self.pages()):
+            try:
+                tabs.append({"index": index, "page_id": self.page_identifier(page), "title": page.title(), "url": page.url})
+            except Exception:
+                if not page.is_closed():
+                    raise
+        return tabs
 
     def pages(self):
         for page, target in list(self._page_ids.items()):
@@ -143,6 +184,8 @@ class BrowserSession:
         if self.playwright:
             self.playwright.stop()
         self.playwright = self.browser = self.page = None
+        self.page_id = ""
+        self.epochs.clear()
         self.clients.clear()
         self._frame_clients.clear()
         self._page_ids.clear()

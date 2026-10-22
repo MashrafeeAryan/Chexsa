@@ -4,9 +4,11 @@ import functools
 import http.server
 import json
 import os
+import socket
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -154,6 +156,59 @@ class BrowserIntegration(unittest.TestCase):
         self.assertEqual(self.backend.execute(ActionRequest("type", {"ref": current, "text": "wrong"})).code, "target_detached")
         self.assertEqual(self.page.get_by_role("textbox", name="Name", exact=True).input_value(), "")
         self.assertEqual(self.backend.execute(ActionRequest("click", {"ref": "invented"})).code, "stale_target")
+
+    def test_closed_observed_tab_recovers_an_open_tab_without_retargeting(self):
+        old_ref = self.element("Name").ref
+        previous = self.page
+        self.page = previous.context.new_page()
+        self.page.goto(self.base + "/controls.html")
+        self.page.bring_to_front()
+        previous.close()
+        result = self.backend.execute(ActionRequest("type", {"ref": old_ref, "text": "wrong tab"}))
+        self.assertEqual(result.code, "page_closed")
+        self.assertFalse(result.executed)
+        self.backend.observe()
+        self.assertIs(self.session.get_page(), self.page)
+        result = self.backend.execute(ActionRequest("type", {"ref": old_ref, "text": "wrong tab"}))
+        self.assertEqual(result.code, "stale_target")
+        self.assertEqual(self.page.get_by_label("Name", exact=True).input_value(), "")
+        self.act("type", ref=self.element("Name").ref, text="Recovered correctly")
+
+    def test_profile_preserves_site_login_state_after_browser_restart(self):
+        with socket.socket() as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            port = reservation.getsockname()[1]
+        with tempfile.TemporaryDirectory() as directory:
+            sessions = []
+            try:
+                for run in range(2):
+                    session = BrowserSession(cdp_url=f"http://127.0.0.1:{port}", auto_launch=True, profile_dir=Path(directory) / "profile", headless=True)
+                    sessions.append(session)
+                    # Reuse this test class's Playwright driver for an isolated Chrome.
+                    session._launch()
+                    session.browser = self.session.playwright.chromium.connect_over_cdp(session.cdp_url)
+                    session.ensure_page()
+                    current = session.get_page()
+                    current.goto(self.base + "/frame.html")
+                    if run == 0:
+                        current.context.add_cookies([{"name": "fixture_login", "value": "saved-login", "url": self.base, "expires": time.time() + 3600}])
+                        current.evaluate("localStorage.setItem('fixture-account','saved-account')")
+                    else:
+                        cookies = {cookie["name"]: cookie["value"] for cookie in current.context.cookies(self.base)}
+                        self.assertEqual(cookies["fixture_login"], "saved-login")
+                        self.assertEqual(current.evaluate("localStorage.getItem('fixture-account')"), "saved-account")
+                    session.clients[session.page_id].send("Browser.close")
+                    session.launched_process.wait(timeout=15)
+                    session.close()
+            finally:
+                for session in sessions:
+                    try:
+                        if session.browser and session.browser.is_connected():
+                            session.clients[session.page_id].send("Browser.close")
+                    finally:
+                        session.close()
+                        if session.launched_process:
+                            session.launched_process.wait(timeout=15)
 
     def test_same_node_renamed_and_empty_observation_are_safe(self):
         send = next(e for e in self.backend.observation.elements if e.role == "button" and e.name == "Send")

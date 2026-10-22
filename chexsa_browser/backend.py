@@ -6,7 +6,7 @@ import time
 from .actions import Executor
 from .collector import Collector
 from .context import ContextView, changes
-from .models import BrowserError, Observation
+from .models import ActionResult, BrowserError, Observation
 from .regions import group_regions
 from .session import BrowserSession
 from .targets import TargetRegistry
@@ -34,8 +34,18 @@ class BrowserBackend:
         self.session.connect()
 
     def observe(self):
+        for _ in range(3):
+            self.registry.invalidate()
+            page = self.session.ensure_page()
+            try:
+                return self._observe_page(page)
+            except Exception:
+                if not page.is_closed() and self.session.browser and self.session.browser.is_connected():
+                    raise
         self.registry.invalidate()
-        page = self.session.get_page()
+        raise BrowserError("page_closed", "Chrome's tabs kept closing during observation. Open a tab and retry.")
+
+    def _observe_page(self, page):
         page.evaluate("""() => {if(!window.__chexsaWatch){window.__chexsaWatch={version:0};const tick=()=>window.__chexsaWatch.version++;new MutationObserver(tick).observe(document,{subtree:true,childList:true,attributes:true,characterData:true});for(const event of ['input','change','scroll'])addEventListener(event,tick,true);} }""")
         before = dict(self.session.epochs)
         elements, text, issues = self.collector.collect()
@@ -55,7 +65,15 @@ class BrowserBackend:
         return result
 
     def execute(self, request):
-        self._change_counter = self.session.get_page().evaluate("window.__chexsaWatch?.version")
+        try:
+            page = self.session.get_page()
+            self._change_counter = page.evaluate("window.__chexsaWatch?.version")
+        except BrowserError as error:
+            return ActionResult(request.action, "error", str(error), error.code)
+        except Exception:
+            if page.is_closed():
+                return ActionResult(request.action, "error", "The selected tab closed. Observe again.", "page_closed")
+            raise
         return self.executor.execute(request)
 
     def wait_for_change(self, timeout=2.0):
@@ -63,8 +81,8 @@ class BrowserBackend:
         changed_at = None
         last = self._change_counter
         while time.monotonic() < deadline:
-            page = self.session.get_page()
             try:
+                page = self.session.get_page()
                 current = page.evaluate("window.__chexsaWatch?.version")
                 if current != last:
                     last, changed_at = current, time.monotonic()
