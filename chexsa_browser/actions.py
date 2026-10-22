@@ -20,7 +20,7 @@ FIELDS = {
     "upload_file": ({"ref": str, "file_path": str}, {}),
     "find_elements": ({"query": str}, {"cursor": str}),
     "inspect_region": ({}, {"ref": str, "cursor": str}),
-    "list_tabs": ({}, {}), "batch": ({"actions": list}, {}),
+    "list_tabs": ({}, {"cursor": str}), "batch": ({"actions": list}, {}),
     "wait": ({}, {"milliseconds": int}),
     "capture_screenshot": ({}, {}),
     "click_coordinates": ({"x": (int, float), "y": (int, float), "screenshot_id": str}, {}),
@@ -35,6 +35,8 @@ def validate(request):
         raise BrowserError("invalid_action", "Unknown browser action.")
     if not isinstance(request.arguments, dict):
         raise BrowserError("invalid_arguments", "Action arguments must be an object.")
+    if not isinstance(request.effect, dict):
+        raise BrowserError("invalid_arguments", "Action effects must be an object.")
     required, optional = FIELDS[request.action]
     for name in required:
         if name not in request.arguments:
@@ -51,6 +53,8 @@ def validate(request):
         for item in request.arguments["actions"]:
             if not isinstance(item, dict) or set(item) - {"action", "arguments", "effect"}:
                 raise BrowserError("invalid_arguments", "Malformed batch item.")
+            if not isinstance(item.get("arguments", {}), dict) or not isinstance(item.get("effect", {}), dict):
+                raise BrowserError("invalid_arguments", "Batch arguments and effects must be objects.")
             if item.get("action") not in BATCHABLE:
                 raise BrowserError("unsafe_batch", f"Action cannot be batched: {item.get('action')}")
             if item.get("effect", {}).get("kind") == "submission" or item.get("arguments", {}).get("press_enter") or item.get("action") == "press_key" and item.get("arguments", {}).get("key", "").lower() in ("enter", "control+enter", "ctrl+enter"):
@@ -78,7 +82,7 @@ class Executor:
                 elif request.action == "inspect_region":
                     data = self.backend.view.inspect(observation, **request.arguments)
                 elif request.action == "list_tabs":
-                    data = {"tabs": observation.tabs}
+                    data = self.backend.view.tabs(observation, **request.arguments)
                 else:
                     data = self.backend.capture_screenshot()
                 self.backend.view.render(observation, data)
@@ -89,7 +93,7 @@ class Executor:
             data = getattr(self, request.action)(**request.arguments) or {}
             return ActionResult(request.action, "ok", "Action executed; verify against the next observation.", executed=True, data={**data, "latency_ms": round((time.monotonic() - started) * 1000)})
         except BrowserError as error:
-            return ActionResult(request.action, "error", str(error), error.code, executed=executed and error.code not in {"stale_target", "target_detached", "blocked", "unsupported_action", "invalid_arguments", "stale_observation"})
+            return ActionResult(request.action, "error", str(error), error.code, executed=executed and error.code not in {"stale_target", "stale_screenshot", "stale_focus", "target_detached", "blocked", "unsupported_action", "invalid_arguments", "stale_observation"})
         except Exception as error:
             return ActionResult(request.action, "uncertain" if executed else "error", f"{type(error).__name__}: {error}", "outcome_uncertain" if executed else "execution_error", executed=executed)
 

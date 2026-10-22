@@ -72,3 +72,14 @@ class ContextTests(unittest.TestCase):
         view.inspect(observation, "inbox-ref")
         rendered = json.loads(view.render(observation))
         self.assertEqual(rendered["focused_region"], "inbox-ref")
+
+    def test_tab_discovery_and_escaped_fields_stay_inside_budget(self):
+        observation = snapshot(2)
+        observation.tabs = [{"index": i, "page_id": str(i), "title": "title " * 100, "url": "http://local/" + "path/" * 100} for i in range(500)]
+        view = ContextView(3000)
+        discovery = view.tabs(observation)
+        self.assertGreater(discovery["omitted"], 0)
+        self.assertLessEqual(len(view.render(observation, discovery)), 3000)
+        observation.elements[0].value = "\x00\n\\\"" * 10000
+        field = view.inspect(observation, observation.elements[0].ref)
+        self.assertLessEqual(len(view.render(observation, field)), 3000)

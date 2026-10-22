@@ -90,9 +90,22 @@ class ContextView:
             raise BrowserError("stale_target", "Unknown region or element. Observe again.")
         offset = self._offset(observation, cursor)
         raw = json.dumps({"name": element.name, "value": element.value, "context": element.context}, ensure_ascii=False)
-        chunk = raw[offset:offset + self.budget // 2]
+        chunk = raw[offset:offset + self.budget // 4]
         end = offset + len(chunk)
         return {"ref": ref, "observation_id": observation.id, "text_chunk": chunk, "next_cursor": f"{observation.id}:{end}" if end < len(raw) else None}
+
+    def tabs(self, observation, cursor=None):
+        offset = self._offset(observation, cursor)
+        items, size = [], 0
+        for tab in observation.tabs[offset:]:
+            item = {**tab, "title": short(tab["title"], 100), "url": short(tab["url"], 180)}
+            length = len(json.dumps(item, ensure_ascii=False)) + 2
+            if size + length > self.budget // 2:
+                break
+            items.append(item)
+            size += length
+        end = offset + len(items)
+        return {"tabs": items, "omitted": len(observation.tabs) - end, "next_cursor": f"{observation.id}:{end}" if end < len(observation.tabs) else None}
 
     def render(self, observation, discovery=None):
         region = next((r for r in observation.regions if r.key == self.selected), None)

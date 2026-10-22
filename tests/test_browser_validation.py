@@ -19,3 +19,8 @@ class ValidationTests(unittest.TestCase):
 
     def test_safe_batch_and_ref_actions_are_valid(self):
         validate(ActionRequest("batch", {"actions": [{"action": "type", "arguments": {"ref": "e1", "text": "hello"}}, {"action": "check", "arguments": {"ref": "e2"}}]}))
+
+    def test_malformed_nested_arguments_are_rejected_before_dispatch(self):
+        for item in ({"action": "type", "arguments": "invalid"}, {"action": "type", "arguments": {"ref": "e1", "text": "hi"}, "effect": "invalid"}):
+            with self.assertRaises(BrowserError):
+                validate(ActionRequest("batch", {"actions": [item]}))
