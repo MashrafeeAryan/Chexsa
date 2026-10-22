@@ -5,36 +5,59 @@ import unittest
 from browser_actions import BrowserActions
 
 
-class FakeLocator:
-    def __init__(self, count):
-        self._count = count
+class FakeElement:
+    def __init__(self):
+        self.clicked = False
+        self.value = ""
+        self.checked = False
 
-    def count(self):
-        return self._count
+    def click(self):
+        self.clicked = True
+
+    def fill(self, text):
+        self.value = text
+
+    def press(self, key):
+        self.last_key = key
+
+    def check(self):
+        self.checked = True
 
 
 class FakePage:
-    def __init__(self, count=1):
-        self.count = count
-
-    def get_by_role(self, role, name):
-        return FakeLocator(self.count)
+    pass
 
 
 class BrowserActionsTests(unittest.TestCase):
-    def test_ambiguous_target_is_rejected(self):
-        """Chexsa should not guess when multiple controls match."""
+    def test_click_uses_element_ref(self):
+        """Chexsa should execute the exact element ref it observed."""
 
+        elements = {"e2": FakeElement()}
         actions = BrowserActions(
-            get_page=lambda: FakePage(count=2),
+            get_page=lambda: FakePage(),
             set_page=lambda page: None,
+            get_element=lambda ref: elements[ref],
         )
 
-        with self.assertRaisesRegex(
-            RuntimeError,
-            'Expected one button "Send", found 2.',
-        ):
-            actions._get_element("button", "Send")
+        result = actions.click("e2")
+
+        self.assertTrue(elements["e2"].clicked)
+        self.assertEqual(result, "Clicked e2")
+
+    def test_type_uses_element_ref(self):
+        """Typing should target the selected browser ref."""
+
+        elements = {"e4": FakeElement()}
+        actions = BrowserActions(
+            get_page=lambda: FakePage(),
+            set_page=lambda page: None,
+            get_element=lambda ref: elements[ref],
+        )
+
+        actions.type_text("e4", "hello", press_enter=True)
+
+        self.assertEqual(elements["e4"].value, "hello")
+        self.assertEqual(elements["e4"].last_key, "Enter")
 
     def test_safe_batch_runs_in_order(self):
         """Safe browser actions should run in one batch."""
@@ -42,6 +65,7 @@ class BrowserActionsTests(unittest.TestCase):
         actions = BrowserActions(
             get_page=lambda: FakePage(),
             set_page=lambda page: None,
+            get_element=lambda ref: FakeElement(),
         )
         calls = []
 
@@ -57,16 +81,14 @@ class BrowserActionsTests(unittest.TestCase):
                 {
                     "action": "type",
                     "arguments": {
-                        "role": "textbox",
-                        "name": "Email",
+                        "ref": "e1",
                         "text": "test@example.com",
                     },
                 },
                 {
                     "action": "check",
                     "arguments": {
-                        "role": "checkbox",
-                        "name": "Remember me",
+                        "ref": "e2",
                     },
                 },
             ]
@@ -84,6 +106,7 @@ class BrowserActionsTests(unittest.TestCase):
         actions = BrowserActions(
             get_page=lambda: FakePage(),
             set_page=lambda page: None,
+            get_element=lambda ref: FakeElement(),
         )
 
         with self.assertRaisesRegex(
@@ -94,10 +117,7 @@ class BrowserActionsTests(unittest.TestCase):
                 [
                     {
                         "action": "click",
-                        "arguments": {
-                            "role": "button",
-                            "name": "Send",
-                        },
+                        "arguments": {"ref": "e1"},
                     }
                 ]
             )
