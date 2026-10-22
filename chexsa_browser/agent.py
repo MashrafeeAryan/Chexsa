@@ -2,7 +2,6 @@
 
 import time
 import uuid
-from dataclasses import asdict
 
 from .actions import DISCOVERY
 from .models import BrowserError, TaskResult, TaskState
@@ -17,6 +16,7 @@ class BrowserAgent:
         self.state = None
         self.cancelled = False
         self.last_result = None
+        self._usage_start = {}
 
     def cancel(self):
         self.cancelled = True
@@ -27,7 +27,8 @@ class BrowserAgent:
 
     def _finish(self, status, message):
         self.state.status = status
-        self.state.metrics.update(getattr(self.model, "usage", {}))
+        self.state.result_message = message
+        self.state.metrics.update({key: value - self._usage_start.get(key, 0) for key, value in getattr(self.model, "usage", {}).items()})
         self._save()
         self.last_result = TaskResult(status, message, self.state.id)
         return self.last_result
@@ -43,10 +44,20 @@ class BrowserAgent:
             result = self.run_task(request)
         return result.message
 
-    def run_task(self, request=None, state=None):
+    def run_task(self, request=None, state=None, task_id=None):
         started = time.monotonic()
         self.cancelled = False
+        self._usage_start = dict(getattr(self.model, "usage", {}))
+        self.state = state
         try:
+            if task_id:
+                if self.journal is None:
+                    raise ValueError("A task journal is required to resume a task.")
+                state = self.journal.load(task_id)
+                self.state = state
+                if state.status == "success":
+                    self.last_result = TaskResult("success", state.result_message or "This task was already completed; no actions were replayed.", state.id)
+                    return self.last_result
             observation = self.backend.observe()
             if state is None:
                 self.state = TaskState(uuid.uuid4().hex, self.model.plan(request, observation))

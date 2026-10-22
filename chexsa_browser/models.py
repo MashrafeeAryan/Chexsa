@@ -97,6 +97,7 @@ class TaskState:
     metrics: dict[str, Any] = field(default_factory=dict)
     commit_baseline: str = ""
     email_checked: bool = False
+    result_message: str = ""
 
 
 @dataclass
