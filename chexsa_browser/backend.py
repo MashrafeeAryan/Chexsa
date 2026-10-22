@@ -1,10 +1,9 @@
 """Browser backend: a complete local observation and a compact model-facing view."""
 
 import hashlib
-from dataclasses import asdict
-
 from .collector import Collector
 from .models import BrowserError, Observation
+from .regions import group_regions
 from .session import BrowserSession
 from .targets import TargetRegistry
 
@@ -32,6 +31,7 @@ class BrowserBackend:
         self.sequence += 1
         fingerprint = hashlib.sha256(repr((page.url, [(e.identity, e.signature()) for e in elements], text)).encode()).hexdigest()
         result = Observation(f"o{self.sequence}", self.session.page_id, page.url, page.title(), tabs, elements, text, issues, fingerprint=fingerprint)
+        result.regions = group_regions(elements, self.observation)
         self.observation = result
         return result
 

@@ -50,16 +50,19 @@ def parse_document(target_id, frame_id, document_id, document, strings, ax_nodes
     def identity(backend):
         return f"{target_id}/{frame_id}/{document_id}/{backend}"
     def ancestry(ax):
-        labels, seen = [], set()
+        labels, regions, seen = [], [], set()
         parent = ax.get("parentId")
         while parent and parent not in seen:
             seen.add(parent)
             node = ax_by_id.get(parent, {})
             role, name = node.get("role", {}).get("value", ""), node.get("name", {}).get("value", "")
-            if role in LANDMARKS and name:
-                labels.append(f'{role} {name}')
+            if role in LANDMARKS:
+                if name:
+                    labels.append(f'{role} {name}')
+                if node.get("backendDOMNodeId"):
+                    regions.append(identity(node["backendDOMNodeId"]))
             parent = node.get("parentId")
-        return tuple(reversed(labels))
+        return tuple(reversed(labels)), tuple(reversed(regions))
     elements, text = [], {}
     for backend, index in indexes.items():
         ax = ax_by_backend.get(backend, {})
@@ -69,6 +72,7 @@ def parse_document(target_id, frame_id, document_id, document, strings, ax_nodes
         props = {p["name"]: p.get("value", {}).get("value") for p in ax.get("properties", [])}
         props.update(disabled=bool(props.get("disabled") or "disabled" in attrs), readonly=bool(props.get("readonly") or "readonly" in attrs))
         name = str(ax.get("name", {}).get("value", ""))
+        context, region_path = ancestry(ax)
         caps = capabilities(role, tag, attrs, props, index in clickable)
         file_input = "upload_file" in caps
         if ax.get("ignored", not bool(ax)) and not file_input and not (index in clickable and index in boxes):
@@ -76,7 +80,7 @@ def parse_document(target_id, frame_id, document_id, document, strings, ax_nodes
         if role in ("statictext", "inlinetextbox") and name.strip():
             # InlineTextBox repeats its StaticText parent's content.
             if role == "statictext":
-                text[identity(backend)] = name
+                text[identity(backend)] = {"text": name, "region_path": region_path}
             continue
         if not caps and role not in LANDMARKS | {"heading", "status", "alert"}:
             continue
@@ -84,7 +88,7 @@ def parse_document(target_id, frame_id, document_id, document, strings, ax_nodes
         value = str(ax.get("value", {}).get("value", string(values.get(index))))
         if attrs.get("type") == "password":
             value = "[redacted]" if value else ""
-        elements.append(Element(target_id, frame_id, document_id, backend, role or tag.lower(), name or attrs.get("aria-label") or attrs.get("placeholder") or attrs.get("title") or ("File input" if file_input else ""), identity(parent) if parent else None, value, props, caps, ancestry(ax), tuple(boxes.get(index, ()))))
+        elements.append(Element(target_id, frame_id, document_id, backend, role or tag.lower(), name or attrs.get("aria-label") or attrs.get("placeholder") or attrs.get("title") or ("File input" if file_input else ""), identity(parent) if parent else None, value, props, caps, context, tuple(boxes.get(index, ())), region_path=region_path))
     return elements, text
 
 

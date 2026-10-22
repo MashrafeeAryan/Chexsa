@@ -20,6 +20,7 @@ class Element:
     bounds: tuple[float, ...] = ()
     ref: str = ""
     region: str = ""
+    region_path: tuple[str, ...] = ()
 
     @property
     def identity(self) -> str:
@@ -35,6 +36,7 @@ class Region:
     label: str
     elements: list[Element] = field(default_factory=list)
     priority: int = 0
+    ref: str = "page"
 
 
 @dataclass
@@ -45,7 +47,7 @@ class Observation:
     title: str
     tabs: list[dict[str, Any]]
     elements: list[Element]
-    text: dict[str, str]
+    text: dict[str, Any]
     issues: list[str] = field(default_factory=list)
     regions: list[Region] = field(default_factory=list)
     context: str = ""
