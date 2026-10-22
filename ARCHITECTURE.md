@@ -104,7 +104,7 @@ On the first step, the browser agent gives the LLM:
 - current URL
 - page title
 - open browser tabs
-- useful ARIA controls
+- useful ARIA controls with temporary element refs
 - limited visible page text
 - screenshot of the visible browser area
 
@@ -131,8 +131,8 @@ Current page:
 youtube.com
 
 Controls:
-textbox "Search"
-button "Search"
+[e4] textbox "Search"
+[e5] button "Search"
 
 Screenshot:
 current YouTube page
@@ -148,8 +148,7 @@ Example:
 {
   "action": "type",
   "arguments": {
-    "role": "textbox",
-    "name": "Search",
+    "ref": "e4",
     "text": "JavaScript tutorials",
     "press_enter": true
   },
@@ -158,7 +157,9 @@ Example:
 }
 ```
 
-Chexsa performs that action, reads the browser again, compares it with the previous state, and repeats until the model says the task is complete.
+Element refs are temporary. Chexsa maps each ref back to the exact Playwright element from the latest observation. This lets duplicate controls such as multiple "Send" buttons remain separately targetable.
+
+Chexsa performs the action, reads the browser again, compares it with the previous state, creates fresh refs, and repeats until the model says the task is complete.
 
 ---
 
