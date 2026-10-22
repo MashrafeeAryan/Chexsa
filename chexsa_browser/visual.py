@@ -19,14 +19,28 @@ class VisualTargeting:
     def _viewport(self):
         return self.backend.session.get_page().evaluate("({width:innerWidth,height:innerHeight,x:scrollX,y:scrollY,dpr:devicePixelRatio,version:window.__chexsaWatch?.version})")
 
+    def _settled_image(self):
+        # Initial high-DPI screenshots can precede Chrome's final compositor paint.
+        # Keep capture bounded on dynamic pages; clicking still requires an exact match.
+        page = self.backend.session.get_page()
+        previous = None
+        for _ in range(4):
+            image = page.screenshot(**OPTIONS)
+            viewport = self._viewport()
+            # Playwright's temporary caret styles increment the mutation counter.
+            rendered = (image, {key: value for key, value in viewport.items() if key != "version"})
+            if rendered == previous:
+                break
+            previous = rendered
+        return image, viewport
+
     def capture(self):
         observation = self.backend.observation
         if observation is None:
             raise BrowserError("stale_observation", "Observe before taking a screenshot.")
-        page = self.backend.session.get_page()
-        image = page.screenshot(**OPTIONS)
+        image, viewport = self._settled_image()
         screenshot_id = uuid.uuid4().hex
-        self.ticket = {"id": screenshot_id, "observation": observation.id, "page": self.backend.session.page_id, "epochs": dict(self.backend.session.epochs), "viewport": self._viewport(), "digest": hashlib.sha256(image).hexdigest()}
+        self.ticket = {"id": screenshot_id, "observation": observation.id, "page": self.backend.session.page_id, "epochs": dict(self.backend.session.epochs), "viewport": viewport, "digest": hashlib.sha256(image).hexdigest()}
         observation.screenshot, observation.screenshot_id = image, screenshot_id
         if self.backend.trace_screenshots and self.backend.task_journal:
             directory = self.backend.task_journal.path.parent / "screenshots"
