@@ -404,6 +404,37 @@ PREVIOUS STEPS:
             for step in history
         ]
 
+        if history:
+            page_state = f"""
+CURRENT PAGE:
+URL: {state.url}
+TITLE: {state.title}
+
+OPEN TABS:
+{json.dumps(state.tabs, indent=2)}
+
+CURRENT CONTROLS:
+{state.aria[:2500]}
+
+CHANGES SINCE LAST STEP:
+{state.changes}
+""".strip()
+        else:
+            page_state = f"""
+CURRENT PAGE:
+URL: {state.url}
+TITLE: {state.title}
+
+OPEN TABS:
+{json.dumps(state.tabs, indent=2)}
+
+ARIA:
+{state.aria}
+
+VISIBLE TEXT:
+{state.text}
+""".strip()
+
         return f"""
 You are the decision layer for Chexsa.
 
@@ -448,18 +479,7 @@ Rules:
 USER REQUEST:
 {request}
 
-CURRENT PAGE:
-URL: {state.url}
-TITLE: {state.title}
-
-OPEN TABS:
-{json.dumps(state.tabs, indent=2)}
-
-ARIA:
-{state.aria}
-
-VISIBLE TEXT:
-{state.text}
+{page_state}
 
 PREVIOUS STEPS:
 {json.dumps(previous_steps, indent=2)}
