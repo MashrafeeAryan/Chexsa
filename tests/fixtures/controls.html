@@ -1,5 +1,8 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><title>Chexsa controls</title>
-<style>body{font:16px sans-serif;margin:20px}section{padding:20px;border:1px solid;margin:15px}button,input{padding:8px}</style>
+<style>body{font:16px sans-serif;margin:20px}section{padding:20px;border:1px solid;margin:15px}button,input{padding:8px}
+/* Native Windows file-button gradients can repaint by one colour level at high DPI. */
+input::file-selector-button{appearance:none;background:#eee;color:#111;border:1px solid #555;border-radius:0;box-shadow:none}
+</style>
 <main aria-label="First region"><button id="first" onclick="this.dataset.clicked='yes'">Send</button><button>Send later</button><button aria-label='Save "draft": C:\notes'>Quoted name</button></main>
 <section role="region" aria-label="Second region"><button id="second" onclick="this.dataset.clicked='yes'">Send</button><input aria-label="Name"><input aria-label="Choice" type="checkbox"><select aria-label="Colour"><option>Blue</option><option>Red</option></select><input aria-label="Upload" type="file"></section>
 <div id="shadow"></div><iframe title="Embedded controls" src="frame.html"></iframe>
