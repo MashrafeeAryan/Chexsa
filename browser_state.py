@@ -33,8 +33,8 @@ CONTEXT_ARIA_ROLES = {
 }
 
 ARIA_LINE = re.compile(
-    r'^(?P<indent>\\s*)-\\s+(?P<role>[A-Za-z]+)'
-    r'(?:\\s+"(?P<name>[^"]*)")?'
+    r'^(?P<indent>\s*)-\s+(?P<role>[A-Za-z]+)'
+    r'(?:\s+"(?P<name>[^"]*)")?'
 )
 
 
