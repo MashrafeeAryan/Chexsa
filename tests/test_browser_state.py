@@ -51,5 +51,55 @@ class BrowserStateTests(unittest.TestCase):
         self.assertEqual(text, "abcdefghij")
 
 
+    def test_initial_state_has_no_diff(self):
+        """The first observation should establish the baseline."""
+
+        state = BrowserState()
+
+        changes = state._get_changes(
+            '- button "Compose"',
+            "Inbox",
+        )
+
+        self.assertEqual(changes, "Initial page state.")
+
+    def test_changes_show_added_and_removed_content(self):
+        """Later observations should report what changed."""
+
+        state = BrowserState()
+        state.previous_aria = '- button "Compose"\n- link "Inbox"'
+        state.previous_text = "Inbox\nOld message"
+
+        changes = state._get_changes(
+            '- button "Compose"\n- textbox "To"',
+            "Inbox\nMessage sent",
+        )
+
+        self.assertIn('Added controls:\n- textbox "To"', changes)
+        self.assertIn('Removed controls:\n- link "Inbox"', changes)
+        self.assertIn("Added text:\nMessage sent", changes)
+        self.assertIn("Removed text:\nOld message", changes)
+
+    def test_changes_are_limited_for_large_pages(self):
+        """Large page changes should stay small for the model."""
+
+        state = BrowserState(max_changes_chars=80)
+        state.previous_aria = ""
+        state.previous_text = ""
+
+        changes = state._get_changes(
+            "\n".join(
+                f'- button "Button {index}"'
+                for index in range(100)
+            ),
+            "\n".join(
+                f"Message {index}"
+                for index in range(100)
+            ),
+        )
+
+        self.assertLessEqual(len(changes), 80)
+
+
 if __name__ == "__main__":
     unittest.main()
