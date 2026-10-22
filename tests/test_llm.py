@@ -1,0 +1,60 @@
+"""Keep provider settings and desktop decisions working after browser cleanup."""
+
+import json
+import unittest
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+from chexsa_browser.model import BrowserModel
+from llm import LLM
+
+
+class LLMTests(unittest.TestCase):
+    def test_saved_provider_settings_reach_browser_model(self):
+        for provider in ("gemini", "openai_compatible"):
+            with self.subTest(provider=provider):
+                settings = {"LLM_PROVIDER": provider, "LLM_MODEL": "saved-model"}
+                client = MagicMock()
+                if provider == "gemini":
+                    settings["GEMINI_API_KEY"] = "fixture-key"
+                    constructor = "llm.genai.Client"
+                    expected = {"api_key": "fixture-key"}
+                    client.models.generate_content.return_value = SimpleNamespace(text='{"ok":true}', usage_metadata=None)
+                else:
+                    settings.update(LLM_API_KEY="fixture-key", LLM_BASE_URL="https://provider.example.test/v1")
+                    constructor = "llm.OpenAI"
+                    expected = {"api_key": "fixture-key", "base_url": settings["LLM_BASE_URL"]}
+                    client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok":true}'))], usage=None)
+                with patch.dict("os.environ", settings, clear=True), patch(constructor, return_value=client) as build:
+                    llm = LLM()
+                    build.assert_called_once_with(**expected)
+                    self.assertEqual(BrowserModel(llm)._ask("Return JSON"), {"ok": True})
+                send = client.models.generate_content if provider == "gemini" else client.chat.completions.create
+                self.assertEqual(send.call_args.kwargs["model"], "saved-model")
+
+    def test_voice_routing_and_desktop_decisions_keep_using_shared_client(self):
+        for provider in ("gemini", "openai_compatible"):
+            with self.subTest(provider=provider):
+                llm = LLM.__new__(LLM)
+                llm.provider, llm.model, llm.client = provider, "saved-model", MagicMock()
+                payload = {"action": "type_text", "arguments": {"control_type": "Edit", "text": "Hello"}, "done": False, "response": ""}
+                if provider == "gemini":
+                    llm.client.models.generate_content.return_value = SimpleNamespace(text="desktop")
+                    llm.client.interactions.create.return_value = SimpleNamespace(output_text=json.dumps(payload))
+                    send = llm.client.interactions.create
+                else:
+                    llm.client.chat.completions.create.side_effect = [
+                        SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="desktop"))]),
+                        SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)))]),
+                    ]
+                    send = llm.client.chat.completions.create
+                self.assertEqual(llm.choose_mode("Write Hello in Word"), "desktop")
+                state = SimpleNamespace(active_window="Word", windows=["Word"], controls=['Edit "Document"'])
+                decision = llm.decide_desktop("Write Hello in Word", state, [])
+                self.assertEqual(decision.action, "type_text")
+                self.assertEqual(decision.arguments, payload["arguments"])
+                arguments = send.call_args.kwargs
+                self.assertEqual(arguments["model"], "saved-model")
+                prompt = arguments["input"] if provider == "gemini" else arguments["messages"][0]["content"]
+                self.assertIn("Write Hello in Word", prompt)
+                self.assertIn('Edit', prompt)

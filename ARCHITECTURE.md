@@ -33,9 +33,9 @@ or Gmail-specific click sequence.
   `BrowserModel` supplies planning, action selection, preflight, and independent
   completion assessment through the configured Gemini or OpenAI-compatible provider.
 
-The previous top-level browser modules remain importable for compatibility and
-their existing tests. Terminal and voice browser tasks use the new package.
-The desktop agent continues using its existing `Agent` and UI Automation modules.
+All browser tasks use `chexsa_browser/`. The desktop agent continues using its
+existing `Agent` and UI Automation modules. `llm.py` supplies the shared model
+client, voice routing, and desktop decisions.
 
 ## Exact browser targets
 
