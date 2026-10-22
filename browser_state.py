@@ -30,6 +30,7 @@ class BrowserSnapshot:
     text: str
     tabs: list[str]
     screenshot: bytes
+    changes: str
 
 
 class BrowserState:
@@ -40,10 +41,14 @@ class BrowserState:
         cdp_url: str = "http://127.0.0.1:9222",
         max_text_chars: int = 4000,
         max_aria_chars: int = 4000,
+        max_changes_chars: int = 3000,
     ) -> None:
         self.cdp_url = cdp_url
         self.max_text_chars = max_text_chars
         self.max_aria_chars = max_aria_chars
+        self.max_changes_chars = max_changes_chars
+        self.previous_aria: str | None = None
+        self.previous_text: str | None = None
 
         self.playwright: Playwright | None = None
         self.browser: Browser | None = None
@@ -65,9 +70,16 @@ class BrowserState:
         page = self.get_page()
         title = page.title()
 
-        aria = self._get_aria(page)
-        text = self._get_visible_text(page)
+        full_aria = self._read_aria(page)
+        full_text = self._read_visible_text(page)
+
+        aria = full_aria[: self.max_aria_chars]
+        text = full_text[: self.max_text_chars]
+        changes = self._get_changes(full_aria, full_text)
         screenshot = self._get_screenshot(page)
+
+        self.previous_aria = full_aria
+        self.previous_text = full_text
 
         tabs = [
             f"{index}: {tab.title()} | {tab.url}"
@@ -81,6 +93,7 @@ class BrowserState:
             text=text,
             tabs=tabs,
             screenshot=screenshot,
+            changes=changes,
         )
 
     def get_page(self) -> Page:
@@ -139,39 +152,82 @@ class BrowserState:
 
         self.active_page = page
 
-    def _get_aria(self, page: Page) -> str:
-        """Read useful interactive elements from the accessibility tree."""
+    def _read_aria(self, page: Page) -> str:
+        """Read useful controls from the accessibility tree."""
 
         try:
             aria = page.locator("body").aria_snapshot()
-
-            # Keep controls and headings the agent is likely to need.
-            useful_lines = [
-                line
-                for line in aria.splitlines()
-                if line.strip().startswith(
-                    tuple(f"- {role}" for role in ACTIONABLE_ARIA_ROLES)
-                )
-            ]
-
-            aria = "\n".join(useful_lines)
-
         except Exception:
-            aria = ""
+            return ""
 
-        # Limit large accessibility trees so they do not waste LLM context.
-        return aria[: self.max_aria_chars]
+        useful_lines = [
+            line
+            for line in aria.splitlines()
+            if line.strip().startswith(
+                tuple(f"- {role}" for role in ACTIONABLE_ARIA_ROLES)
+            )
+        ]
 
-    def _get_visible_text(self, page: Page) -> str:
-        """Read visible page text and limit how much goes to the LLM."""
+        return "\n".join(useful_lines)
+
+    def _get_aria(self, page: Page) -> str:
+        """Read useful controls with the normal context limit."""
+
+        return self._read_aria(page)[: self.max_aria_chars]
+
+    def _read_visible_text(self, page: Page) -> str:
+        """Read visible page text."""
 
         try:
-            text = page.locator("body").inner_text()
+            return page.locator("body").inner_text()
         except Exception:
-            text = ""
+            return ""
 
-        # Limit large pages so they do not waste LLM context.
-        return text[: self.max_text_chars]
+    def _get_visible_text(self, page: Page) -> str:
+        """Read visible text with the normal context limit."""
+
+        return self._read_visible_text(page)[: self.max_text_chars]
+
+    def _get_changes(self, aria: str, text: str) -> str:
+        """Describe what changed since the previous browser state."""
+
+        if self.previous_aria is None or self.previous_text is None:
+            return "Initial page state."
+
+        old_aria = set(self.previous_aria.splitlines())
+        new_aria = set(aria.splitlines())
+        old_text = set(self.previous_text.splitlines())
+        new_text = set(text.splitlines())
+
+        sections = []
+
+        added_controls = [line for line in aria.splitlines() if line not in old_aria]
+        removed_controls = [
+            line for line in self.previous_aria.splitlines()
+            if line not in new_aria
+        ]
+        added_text = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and line not in old_text
+        ]
+        removed_text = [
+            line.strip()
+            for line in self.previous_text.splitlines()
+            if line.strip() and line not in new_text
+        ]
+
+        if added_controls:
+            sections.append("Added controls:\n" + "\n".join(added_controls))
+        if removed_controls:
+            sections.append("Removed controls:\n" + "\n".join(removed_controls))
+        if added_text:
+            sections.append("Added text:\n" + "\n".join(added_text))
+        if removed_text:
+            sections.append("Removed text:\n" + "\n".join(removed_text))
+
+        changes = "\n\n".join(sections) or "No visible changes."
+        return changes[: self.max_changes_chars]
 
     def _get_screenshot(self, page: Page) -> bytes:
         """Capture the visible browser area."""
