@@ -2,7 +2,7 @@
 
 import unittest
 
-from browser_state import BrowserState
+from browser_state import BrowserElement, BrowserState
 
 
 class FakeLocator:
@@ -147,6 +147,36 @@ class BrowserStateTests(unittest.TestCase):
             'Unknown browser element ref "e99"',
         ):
             state.get_element("e99")
+
+    def test_ref_resolution_uses_exact_name(self):
+        """Ref lookup should not confuse Send with Send later."""
+
+        class Matches:
+            def count(self):
+                return 1
+
+            def nth(self, index):
+                return f"match-{index}"
+
+        class RolePage:
+            def get_by_role(self, role, name, exact=False):
+                self.exact = exact
+                return Matches()
+
+        page = RolePage()
+        state = BrowserState()
+        state.element_refs = {
+            "e1": BrowserElement(
+                ref="e1",
+                role="button",
+                name="Send",
+                occurrence=0,
+            )
+        }
+        state.get_page = lambda: page
+
+        self.assertEqual(state.get_element("e1"), "match-0")
+        self.assertTrue(page.exact)
 
 
 if __name__ == "__main__":
