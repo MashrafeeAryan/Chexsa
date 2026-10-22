@@ -58,7 +58,12 @@ class ContextView:
         for element in elements[start:]:
             item = record(element)
             size = len(json.dumps(item, ensure_ascii=False)) + 2
-            if used + size > (budget or self.budget // 2):
+            maximum = budget or self.budget // 2
+            if not records and size > maximum:
+                # Even a huge accessible name must not create an endless :0 cursor.
+                item = {"ref": element.ref, "role": element.role, "name": short(element.name, 80), "expand": True}
+                size = len(json.dumps(item, ensure_ascii=False)) + 2
+            if used + size > maximum:
                 break
             records.append(item)
             used += size

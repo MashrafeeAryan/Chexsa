@@ -35,6 +35,16 @@ class ContextTests(unittest.TestCase):
         found = ContextView().find(observation, "Message 499")
         self.assertEqual(found["elements"][0]["ref"], "e499")
 
+    def test_huge_names_and_values_still_advance_the_cursor(self):
+        observation = snapshot(2)
+        for element in observation.elements:
+            element.name = "long " * 1000
+            element.value = "value " * 1000
+            element.context = ("context " * 1000,)
+        page = ContextView(2000).page(observation, observation.elements, budget=650)
+        self.assertGreater(len(page["elements"]), 0)
+        self.assertNotEqual(page["next_cursor"], "o1:0")
+
     def test_old_cursors_are_rejected(self):
         with self.assertRaises(BrowserError):
             ContextView().inspect(snapshot(generation="o2"), cursor="o1:20")
