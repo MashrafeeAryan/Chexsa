@@ -156,6 +156,15 @@ class BrowserIntegration(unittest.TestCase):
         self.act("click", ref=self.element("Frame action").ref)
         self.assertEqual(frame.get_by_role("textbox").input_value(), "Cross origin")
         self.assertEqual(frame.get_by_role("button").get_attribute("data-clicked"), "yes")
+        # The same Frame object may move between renderer processes over its lifetime.
+        for destination in (self.base + "/frame.html", url):
+            with self.page.expect_event("framenavigated", predicate=lambda frame: frame.url == destination):
+                self.page.locator("iframe").evaluate("(e,url)=>e.src=url", destination)
+            frame = next(frame for frame in self.page.frames if frame.url == destination)
+            frame.wait_for_load_state("domcontentloaded")
+            self.backend.observe()
+            self.act("type", ref=self.element("Frame value").ref, text="Navigated frame")
+            self.assertEqual(frame.get_by_role("textbox").input_value(), "Navigated frame")
 
     def test_form_actions_shadow_dom_frame_and_upload(self):
         self.act("type", ref=self.element("Name").ref, text="Literal {text} + unicode café")
@@ -217,6 +226,12 @@ class BrowserIntegration(unittest.TestCase):
         request = ActionRequest("batch", {"actions": [{"action": "type", "arguments": {"ref": self.element("Name").ref, "text": "should not run"}}, {"action": "click", "arguments": {"ref": "invented"}}]})
         self.assertEqual(self.backend.execute(request).code, "unsafe_batch")
         self.assertEqual(self.page.get_by_label("Name", exact=True).input_value(), "")
+
+    def test_batch_stops_when_an_input_navigates(self):
+        self.page.get_by_label("Name", exact=True).evaluate("(e,url)=>e.addEventListener('input',()=>location.assign(url))", self.base + "/frame.html")
+        result = self.backend.execute(ActionRequest("batch", {"actions": [{"action": "type", "arguments": {"ref": self.element("Name").ref, "text": "navigate"}}, {"action": "check", "arguments": {"ref": self.element("Choice").ref}}]}))
+        self.assertEqual(result.code, "batch_interrupted")
+        self.assertEqual(len(result.data["results"]), 1)
 
     def test_visual_click_typing_and_stale_images(self):
         image = self.act("capture_screenshot").data

@@ -84,8 +84,12 @@ class BrowserSession:
 
     def _remember(self, target, client):
         if target in self.clients:
-            client.detach()
-            return
+            try:
+                self.clients[target].send("Target.getTargetInfo")
+                client.detach()
+                return
+            except Exception:
+                self.clients.pop(target, None)
         self.clients[target] = client
         self.epochs[target] = 0
         client.send("Page.enable")
@@ -98,25 +102,41 @@ class BrowserSession:
     def targets(self):
         page = self.get_page()
         found = {self.page_id}
+        previous = set(self._frame_clients.values())
+        current = {}
         for frame in page.frames:
             if frame == page.main_frame:
                 continue
             try:
-                if frame not in self._frame_clients:
-                    client = page.context.new_cdp_session(frame)
-                    target = client.send("Target.getTargetInfo")["targetInfo"]["targetId"]
-                    self._frame_clients[frame] = target
-                    self._remember(target, client)
-                found.add(self._frame_clients[frame])
+                # A Frame can move to a different renderer/CDP target on navigation.
+                client = page.context.new_cdp_session(frame)
+                target = client.send("Target.getTargetInfo")["targetInfo"]["targetId"]
+                current[frame] = target
+                self._remember(target, client)
+                found.add(target)
             except Exception:
                 # Same-process frames are already in the parent target's snapshot.
                 pass
+        self._frame_clients = current
+        for obsolete in previous - found - set(self._page_ids.values()):
+            old = self.clients.pop(obsolete, None)
+            self.epochs.pop(obsolete, None)
+            if old:
+                try:
+                    old.detach()
+                except Exception:
+                    pass
         return [(target, self.clients[target]) for target in sorted(found)]
 
     def tabs(self):
         return [{"index": i, "page_id": self.page_identifier(page), "title": page.title(), "url": page.url} for i, page in enumerate(self.pages())]
 
     def pages(self):
+        for page, target in list(self._page_ids.items()):
+            if page.is_closed():
+                self._page_ids.pop(page)
+                self.clients.pop(target, None)
+                self.epochs.pop(target, None)
         return [page for context in self.browser.contexts for page in context.pages if not page.is_closed()]
 
     def close(self):
