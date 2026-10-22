@@ -2,7 +2,9 @@
 It collects the URL, title, ARIA, visible text, and a screenshot."""
 
 from dataclasses import dataclass
-from playwright.sync_api import Browser, Page, Playwright, sync_playwright
+import re
+
+from playwright.sync_api import Browser, Locator, Page, Playwright, sync_playwright
 
 
 ACTIONABLE_ARIA_ROLES = (
@@ -19,6 +21,33 @@ ACTIONABLE_ARIA_ROLES = (
     "heading",
 )
 
+CONTEXT_ARIA_ROLES = {
+    "article",
+    "dialog",
+    "form",
+    "group",
+    "listitem",
+    "main",
+    "navigation",
+    "region",
+}
+
+ARIA_LINE = re.compile(
+    r'^(?P<indent>\s*)-\s+(?P<role>[A-Za-z]+)'
+    r'(?:\s+"(?P<name>[^"]*)")?'
+)
+
+
+@dataclass(frozen=True)
+class BrowserElement:
+    """Describe one browser control that the model can target."""
+
+    ref: str
+    role: str
+    name: str
+    occurrence: int
+    context: str = ""
+
 
 @dataclass
 class BrowserSnapshot:
@@ -31,6 +60,7 @@ class BrowserSnapshot:
     tabs: list[str]
     screenshot: bytes
     changes: str
+    elements: list[BrowserElement]
 
 
 class BrowserState:
@@ -49,6 +79,7 @@ class BrowserState:
         self.max_changes_chars = max_changes_chars
         self.previous_aria: str | None = None
         self.previous_text: str | None = None
+        self.element_refs: dict[str, BrowserElement] = {}
 
         self.playwright: Playwright | None = None
         self.browser: Browser | None = None
@@ -70,10 +101,12 @@ class BrowserState:
         page = self.get_page()
         title = page.title()
 
-        full_aria = self._read_aria(page)
+        raw_aria = self._read_raw_aria(page)
+        full_aria = self._filter_aria(raw_aria)
+        elements = self._build_element_refs(raw_aria)
+        aria = self._format_elements(elements)[: self.max_aria_chars]
         full_text = self._read_visible_text(page)
 
-        aria = full_aria[: self.max_aria_chars]
         text = full_text[: self.max_text_chars]
         changes = self._get_changes(full_aria, full_text)
         screenshot = self._get_screenshot(page)
@@ -94,6 +127,7 @@ class BrowserState:
             tabs=tabs,
             screenshot=screenshot,
             changes=changes,
+            elements=elements,
         )
 
     def get_page(self) -> Page:
@@ -152,13 +186,40 @@ class BrowserState:
 
         self.active_page = page
 
-    def _read_aria(self, page: Page) -> str:
-        """Read useful controls from the accessibility tree."""
+    def get_element(self, ref: str) -> Locator:
+        """Resolve a temporary model ref to one live Playwright element."""
+
+        element = self.element_refs.get(ref)
+
+        if element is None:
+            raise RuntimeError(
+                f'Unknown browser element ref "{ref}". Observe the page again.'
+            )
+
+        matches = self.get_page().get_by_role(
+            element.role,
+            name=element.name,
+            exact=True,
+        )
+        count = matches.count()
+
+        if element.occurrence >= count:
+            raise RuntimeError(
+                f'Browser element ref "{ref}" is no longer available.'
+            )
+
+        return matches.nth(element.occurrence)
+
+    def _read_raw_aria(self, page: Page) -> str:
+        """Read the page accessibility snapshot."""
 
         try:
-            aria = page.locator("body").aria_snapshot()
+            return page.locator("body").aria_snapshot()
         except Exception:
             return ""
+
+    def _filter_aria(self, aria: str) -> str:
+        """Keep useful controls for browser change tracking."""
 
         useful_lines = [
             line
@@ -170,10 +231,84 @@ class BrowserState:
 
         return "\n".join(useful_lines)
 
+    def _read_aria(self, page: Page) -> str:
+        """Read useful controls from the accessibility tree."""
+
+        return self._filter_aria(self._read_raw_aria(page))
+
     def _get_aria(self, page: Page) -> str:
         """Read useful controls with the normal context limit."""
 
         return self._read_aria(page)[: self.max_aria_chars]
+
+    def _build_element_refs(self, aria: str) -> list[BrowserElement]:
+        """Give visible named controls short refs for the current observation."""
+
+        elements: list[BrowserElement] = []
+        occurrences: dict[tuple[str, str], int] = {}
+        context_stack: list[tuple[int, str]] = []
+
+        for line in aria.splitlines():
+            match = ARIA_LINE.match(line)
+
+            if not match:
+                continue
+
+            indent = len(match.group("indent"))
+            role = match.group("role").lower()
+            name = (match.group("name") or "").strip()
+
+            while context_stack and context_stack[-1][0] >= indent:
+                context_stack.pop()
+
+            if role in ACTIONABLE_ARIA_ROLES and name:
+                key = (role, name)
+                occurrence = occurrences.get(key, 0)
+                occurrences[key] = occurrence + 1
+
+                ref = f"e{len(elements) + 1}"
+                context = " > ".join(
+                    label for _, label in context_stack[-2:]
+                )
+                elements.append(
+                    BrowserElement(
+                        ref=ref,
+                        role=role,
+                        name=name,
+                        occurrence=occurrence,
+                        context=context,
+                    )
+                )
+
+            if role in CONTEXT_ARIA_ROLES and name:
+                context_stack.append(
+                    (indent, f'{role} "{name}"')
+                )
+
+        self.element_refs = {
+            element.ref: element
+            for element in elements
+        }
+
+        return elements
+
+    def _format_elements(
+        self,
+        elements: list[BrowserElement],
+    ) -> str:
+        """Format browser refs as compact model-readable lines."""
+
+        lines = []
+
+        for element in elements:
+            line = f'[{element.ref}] {element.role} "{element.name}"'
+
+            if element.context:
+                line += f" | context: {element.context}"
+
+            lines.append(line)
+
+        return "\n".join(lines)
 
     def _read_visible_text(self, page: Page) -> str:
         """Read visible page text."""
@@ -201,7 +336,10 @@ class BrowserState:
 
         sections = []
 
-        added_controls = [line for line in aria.splitlines() if line not in old_aria]
+        added_controls = [
+            line for line in aria.splitlines()
+            if line not in old_aria
+        ]
         removed_controls = [
             line for line in self.previous_aria.splitlines()
             if line not in new_aria
@@ -220,11 +358,17 @@ class BrowserState:
         if added_text:
             sections.append("Added text:\n" + "\n".join(added_text))
         if added_controls:
-            sections.append("Added controls:\n" + "\n".join(added_controls))
+            sections.append(
+                "Added controls:\n" + "\n".join(added_controls)
+            )
         if removed_controls:
-            sections.append("Removed controls:\n" + "\n".join(removed_controls))
+            sections.append(
+                "Removed controls:\n" + "\n".join(removed_controls)
+            )
         if removed_text:
-            sections.append("Removed text:\n" + "\n".join(removed_text))
+            sections.append(
+                "Removed text:\n" + "\n".join(removed_text)
+            )
 
         changes = "\n\n".join(sections) or "No visible changes."
         return changes[: self.max_changes_chars]

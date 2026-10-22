@@ -2,7 +2,7 @@
 
 import unittest
 
-from browser_state import BrowserState
+from browser_state import BrowserElement, BrowserState
 
 
 class FakeLocator:
@@ -118,6 +118,65 @@ class BrowserStateTests(unittest.TestCase):
         )
 
         self.assertIn("Message sent", changes)
+
+    def test_duplicate_controls_get_different_refs(self):
+        """Duplicate names should still be separately targetable."""
+
+        state = BrowserState()
+        elements = state._build_element_refs(
+            '- dialog "New Message":\n'
+            '  - button "Send"\n'
+            '- main "Inbox":\n'
+            '  - button "Send"\n'
+        )
+
+        self.assertEqual(elements[0].ref, "e1")
+        self.assertEqual(elements[1].ref, "e2")
+        self.assertEqual(elements[0].occurrence, 0)
+        self.assertEqual(elements[1].occurrence, 1)
+        self.assertIn('dialog "New Message"', elements[0].context)
+        self.assertIn('main "Inbox"', elements[1].context)
+
+    def test_unknown_element_ref_is_rejected(self):
+        """Old or invented refs should fail before an action runs."""
+
+        state = BrowserState()
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            'Unknown browser element ref "e99"',
+        ):
+            state.get_element("e99")
+
+    def test_ref_resolution_uses_exact_name(self):
+        """Ref lookup should not confuse Send with Send later."""
+
+        class Matches:
+            def count(self):
+                return 1
+
+            def nth(self, index):
+                return f"match-{index}"
+
+        class RolePage:
+            def get_by_role(self, role, name, exact=False):
+                self.exact = exact
+                return Matches()
+
+        page = RolePage()
+        state = BrowserState()
+        state.element_refs = {
+            "e1": BrowserElement(
+                ref="e1",
+                role="button",
+                name="Send",
+                occurrence=0,
+            )
+        }
+        state.get_page = lambda: page
+
+        self.assertEqual(state.get_element("e1"), "match-0")
+        self.assertTrue(page.exact)
 
 
 if __name__ == "__main__":
