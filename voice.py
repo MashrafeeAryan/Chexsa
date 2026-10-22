@@ -1,14 +1,8 @@
 """Runs Chexsa with the "Hey Chexsa" wake phrase.
-It routes each request to the browser agent or desktop agent.
+It routes each request to chat, the browser agent, or the desktop agent.
 Voice mode is optional and does not change the normal terminal mode."""
 
-from agent import Agent
-from chexsa_browser.agent import BrowserAgent
-from chexsa_browser.backend import BrowserBackend
-from chexsa_browser.runtime import create_browser_agent as build_browser_agent
-from desktop_actions import DesktopActions
-from desktop_state import DesktopState
-from llm import LLM
+from app_runtime import AppSession
 
 
 WAKE_PHRASE = "hey chexsa"
@@ -40,41 +34,8 @@ def listen_text(recognizer, source, sr) -> str | None:
         return None
 
 
-def create_browser_agent(llm: LLM) -> tuple[BrowserBackend, BrowserAgent]:
-    """Use the same browser engine as terminal mode."""
-
-    return build_browser_agent(llm)
-
-
-def create_desktop_agent(llm: LLM) -> Agent:
-    """Connect the existing desktop state and actions to the agent loop."""
-
-    state = DesktopState()
-    actions = DesktopActions()
-
-    return Agent(
-        observe=state.observe,
-        decide=llm.decide_desktop,
-        execute=actions.execute,
-    )
-
-
-def run_command(
-    command: str,
-    browser_agent: BrowserAgent,
-    desktop_agent: Agent,
-    llm: LLM,
-) -> str:
-    """Route the command to the browser or desktop agent."""
-
-    if llm.choose_mode(command) == "desktop":
-        return desktop_agent.run(command)
-
-    return browser_agent.run(command)
-
-
 def main() -> None:
-    """Listen for Hey Chexsa and run the spoken browser command."""
+    """Listen for Hey Chexsa and route the spoken request."""
 
     try:
         import speech_recognition as sr
@@ -85,9 +46,7 @@ def main() -> None:
 
     recognizer = sr.Recognizer()
     microphone = sr.Microphone()
-    llm = LLM()
-    browser, browser_agent = create_browser_agent(llm)
-    desktop_agent = create_desktop_agent(llm)
+    app = AppSession()
 
     print('Chexsa Voice')
     print('Say "Hey Chexsa" followed by a command.')
@@ -123,20 +82,17 @@ def main() -> None:
                     break
 
                 print(f"You > {command}")
-                response = run_command(
-                    command,
-                    browser_agent,
-                    desktop_agent,
-                    llm,
-                )
-                print(f"Chexsa > {response}")
+                try:
+                    print(f"Chexsa > {app.run(command)}")
+                except Exception as error:
+                    print(f"Chexsa > Could not run the request: {error}")
                 print("Listening for Hey Chexsa...")
 
     except KeyboardInterrupt:
         print("\nChexsa > Goodbye.")
 
     finally:
-        browser.close()
+        app.close()
 
 
 if __name__ == "__main__":

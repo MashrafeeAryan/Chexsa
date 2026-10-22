@@ -1,4 +1,4 @@
-"""Load the selected model provider and support voice routing and desktop decisions.
+"""Load the model provider and support chat, request routing, and desktop decisions.
 
 Browser decisions are handled by chexsa_browser.model using the same client.
 """
@@ -85,13 +85,14 @@ class LLM:
 
 
     def choose_mode(self, request: str) -> str:
-        """Choose whether a voice request needs the browser or desktop."""
+        """Choose chat, website interaction, or Windows desktop interaction."""
 
         prompt = (
-            "Classify this computer task as browser or desktop. "
-            "Use browser for websites and web searches. "
-            "Use desktop for Windows apps and local computer actions. "
-            "Return only browser or desktop.\n\n"
+            "Classify the user's request as chat, browser, or desktop. "
+            "Use chat for greetings, explanations, or answers that need no app interaction. "
+            "Use browser for interacting with websites or searching the web. "
+            "Use desktop for controlling Windows apps or local computer actions. "
+            "Return exactly chat, browser, or desktop with no other text.\n\n"
             f"REQUEST:\n{request}"
         )
 
@@ -99,21 +100,35 @@ class LLM:
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=prompt,
+                config={"http_options": {"timeout": 60000}},
             )
             text = response.text
         else:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
+                timeout=60,
             )
             text = response.choices[0].message.content
 
         mode = (text or "").strip().lower()
 
-        if "desktop" in mode:
-            return "desktop"
+        if mode not in ("chat", "browser", "desktop"):
+            raise RuntimeError("The model did not choose chat, browser, or desktop. Please retry.")
+        return mode
 
-        return "browser"
+    def reply(self, request):
+        """Answer in the terminal without opening a browser or desktop app."""
+        prompt = "You are Chexsa. Reply to the user's message directly. Do not claim to have used a browser or computer tool.\n\n" + request
+        if self.provider == "gemini":
+            response = self.client.models.generate_content(model=self.model, contents=prompt, config={"http_options": {"timeout": 60000}})
+            text = response.text
+        else:
+            response = self.client.chat.completions.create(model=self.model, messages=[{"role": "user", "content": prompt}], timeout=60)
+            text = response.choices[0].message.content
+        if not text:
+            raise RuntimeError("The model returned an empty response.")
+        return text
 
     def decide_desktop(
         self,

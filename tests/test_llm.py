@@ -10,6 +10,25 @@ from llm import LLM
 
 
 class LLMTests(unittest.TestCase):
+    def test_chat_is_routed_and_answered_without_browser_tools(self):
+        for provider in ("gemini", "openai_compatible"):
+            with self.subTest(provider=provider):
+                llm = LLM.__new__(LLM)
+                llm.provider, llm.model, llm.client = provider, "saved-model", MagicMock()
+                if provider == "gemini":
+                    llm.client.models.generate_content.side_effect = [SimpleNamespace(text="chat"), SimpleNamespace(text="Hello")]
+                else:
+                    llm.client.chat.completions.create.side_effect = [SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))]) for text in ("chat", "Hello")]
+                self.assertEqual(llm.choose_mode("Hi"), "chat")
+                self.assertEqual(llm.reply("Hi"), "Hello")
+
+    def test_invalid_routing_response_is_not_a_browser_request(self):
+        llm = LLM.__new__(LLM)
+        llm.provider, llm.model, llm.client = "gemini", "saved-model", MagicMock()
+        llm.client.models.generate_content.return_value = SimpleNamespace(text="not a mode")
+        with self.assertRaises(RuntimeError):
+            llm.choose_mode("Hi")
+
     def test_saved_provider_settings_reach_browser_model(self):
         for provider in ("gemini", "openai_compatible"):
             with self.subTest(provider=provider):

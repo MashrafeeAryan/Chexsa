@@ -32,6 +32,7 @@ packages = ["chexsa_browser"]
 # Python files that are part of Chexsa.
 py-modules = [
     "agent",
+    "app_runtime",
     "desktop_state",
     "desktop_actions",
     "llm",
