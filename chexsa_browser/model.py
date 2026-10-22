@@ -44,7 +44,7 @@ class BrowserModel:
             contents = [prompt]
             if screenshot:
                 contents.append(types.Part.from_bytes(data=screenshot, mime_type="image/jpeg"))
-            response = self.llm.client.models.generate_content(model=self.llm.model, contents=contents, config={"response_mime_type": "application/json"})
+            response = self.llm.client.models.generate_content(model=self.llm.model, contents=contents, config={"response_mime_type": "application/json", "http_options": {"timeout": 60000}})
             usage = response.usage_metadata
             if usage:
                 self.usage["input_tokens"] += usage.prompt_token_count or 0

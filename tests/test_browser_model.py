@@ -1,4 +1,6 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from chexsa_browser.model import BrowserModel, parse_object
 from chexsa_browser.models import BrowserError, Observation, TaskSpec, TaskState
@@ -33,3 +35,15 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(spec.intent, "draft")
         self.assertEqual(spec.inputs["recipient"], "intended@example.test")
         self.assertIn("body", spec.inputs)
+
+    def test_provider_adapters_preserve_json_images_and_usage(self):
+        for provider in ("gemini", "openai_compatible"):
+            with self.subTest(provider=provider):
+                client = MagicMock()
+                model = BrowserModel(SimpleNamespace(provider=provider, model="configured-model", client=client))
+                if provider == "gemini":
+                    client.models.generate_content.return_value = SimpleNamespace(text='{"result":"ok"}', usage_metadata=SimpleNamespace(prompt_token_count=12, candidates_token_count=3))
+                else:
+                    client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"result":"ok"}'))], usage=SimpleNamespace(prompt_tokens=12, completion_tokens=3))
+                self.assertEqual(model._ask("Return JSON", b"image bytes"), {"result": "ok"})
+                self.assertEqual(model.usage, {"calls": 1, "input_tokens": 12, "output_tokens": 3})
