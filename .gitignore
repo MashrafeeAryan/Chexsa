@@ -1,2 +1,9 @@
-# Keep secret environment variables out of GitHub.
+# Local credentials and generated Python/runtime files.
 .env
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.chexsa/
+build/
+dist/
