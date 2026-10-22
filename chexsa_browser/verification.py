@@ -75,3 +75,9 @@ def completion_is_supported(state, observation, verdict):
     if state.submission != "none":
         return any(quote not in state.commit_baseline for quote in quotes)
     return True
+
+
+def failure_is_supported(state, observation, verdict):
+    quotes = verdict.get("evidence", [])
+    actual = evidence_text(observation)
+    return verdict.get("failed") is True and verdict.get("complete") is False and bool(quotes) and all(quote.strip() and quote in actual for quote in quotes) and any(quote not in state.commit_baseline for quote in quotes)

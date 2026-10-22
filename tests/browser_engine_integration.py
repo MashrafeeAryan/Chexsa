@@ -2,6 +2,7 @@
 
 import functools
 import http.server
+import json
 import sys
 import tempfile
 import threading
@@ -12,12 +13,64 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chexsa_browser.backend import BrowserBackend
 from chexsa_browser.models import ActionRequest
+from chexsa_browser.models import TaskSpec
+from chexsa_browser.agent import BrowserAgent
+from chexsa_browser.journal import TaskJournal
 from chexsa_browser.session import BrowserSession
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
+
+
+class ScriptedMailModel:
+    """Test the model contract deterministically, using ONLY the bounded model view."""
+    inputs = {"recipient": "fixture@example.test", "subject": "Hello", "body": "Hello, how are you?"}
+
+    def plan(self, request, observation, state=None):
+        return TaskSpec(request, dict(self.inputs), ["Open compose", "Fill draft", "Verify and send"], ["Fresh sending confirmation"])
+
+    def visible(self, observation):
+        data = json.loads(observation.context)
+        return data, data["controls"]["elements"] + data.get("discovery", {}).get("elements", [])
+
+    def choose(self, state, observation):
+        if state.submission != "none":
+            return ActionRequest("finish", {"response": "Email sent"})
+        data, controls = self.visible(observation)
+        if not any("dialog New message" in r["label"] for r in data["regions"]):
+            name, query = "Compose", "Compose"
+            action, arguments = "click", {}
+        else:
+            fields = [("recipient", "Recipients"), ("subject", "Subject"), ("body", "Message body")]
+            done = {item.get("arguments", {}).get("text") for item in state.history if item.get("action") == "type" and item.get("status") == "ok"}
+            remaining = next(((key, name) for key, name in fields if self.inputs[key] not in done), None)
+            if remaining:
+                key, name = remaining
+                query = name
+                action, arguments = "type", {"text": self.inputs[key]}
+                if key == "recipient":
+                    arguments["press_enter"] = True
+            else:
+                name, query = "Send", "Send dialog New message"
+                action, arguments = "click", {}
+        element = next((e for e in controls if e["name"] == name and (name != "Send" or "New message" in e.get("context", ""))), None)
+        if element is None:
+            return ActionRequest("find_elements", {"query": query})
+        return ActionRequest(action, {**arguments, "ref": element["ref"]}, {"kind": "submission" if name == "Send" else "value"})
+
+    def preflight(self, state, observation):
+        data, controls = self.visible(observation)
+        by_name = {e["name"]: e for e in controls}
+        # Bounded controls include the three draft fields; the send button may need search.
+        return {"ready": True, "region_ref": data["focused_region"], "subject_ref": by_name["Subject"]["ref"], "body_ref": by_name["Message body"]["ref"], "recipient_ref": "", "recipient_text": self.inputs["recipient"], "reason": "Draft values inspected"}
+
+    def verify(self, state, before, after, result=None):
+        view = after.context
+        sent = "Message sent" in view
+        failed = "Message could not be sent" in view
+        return {"complete": sent, "failed": failed, "progress": "Email sending confirmed" if sent else "", "reason": "Application refused sending" if failed else "Waiting for confirmation", "evidence": ["Message sent"] if sent else (["Message could not be sent"] if failed else [])}
 
 
 class BrowserIntegration(unittest.TestCase):
@@ -180,6 +233,31 @@ class BrowserIntegration(unittest.TestCase):
             context.close()
             self.page = original
             self.session.select(original)
+
+    def test_twenty_consecutive_verified_email_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            journal = TaskJournal(Path(directory) / "tasks.db")
+            try:
+                for run in range(20):
+                    with self.subTest(run=run + 1):
+                        self.page.goto(self.base + "/mail.html?rows=150")
+                        agent = BrowserAgent(self.backend, ScriptedMailModel(), journal=journal, emit=lambda text: None)
+                        result = agent.run_task("Send hello to fixture@example.test")
+                        self.assertEqual(result.status, "success", result)
+                        self.assertEqual(self.page.evaluate("window.sendCount"), 1)
+                        self.assertEqual(self.page.evaluate("window.lastMail"), {"to": "fixture@example.test", "subject": "Hello", "body": "Hello, how are you?"})
+                        self.assertEqual(self.page.locator("#wrong").inner_text(), "")
+                        self.assertEqual(journal.load(result.task_id).status, "success")
+            finally:
+                journal.close()
+
+    def test_failed_uncertain_and_delayed_sends(self):
+        for mode, expected, count in (("failure", "failed", 0), ("uncertain", "uncertain", 1), ("delay", "success", 1)):
+            with self.subTest(mode=mode):
+                self.page.goto(self.base + "/mail.html?mode=" + mode)
+                result = BrowserAgent(self.backend, ScriptedMailModel(), emit=lambda text: None).run_task("Send hello to fixture@example.test")
+                self.assertEqual(result.status, expected, result)
+                self.assertEqual(self.page.evaluate("window.sendCount"), count)
 
 
 if __name__ == "__main__":

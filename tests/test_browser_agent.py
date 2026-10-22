@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from chexsa_browser.agent import BrowserAgent
 from chexsa_browser.models import ActionRequest, ActionResult, Observation, TaskSpec, TaskState
-from chexsa_browser.verification import completion_is_supported
+from chexsa_browser.verification import completion_is_supported, failure_is_supported
 
 
 class FakeBackend:
@@ -71,3 +71,11 @@ class BrowserAgentTests(unittest.TestCase):
         result = BrowserAgent(backend, model, emit=lambda text: None).run_task("draft")
         self.assertEqual(result.status, "blocked")
         self.assertFalse(backend.calls)
+
+    def test_failure_needs_actual_new_evidence(self):
+        state = TaskState("t", TaskSpec("submit"))
+        observation = FakeBackend().observation
+        verdict = {"failed": True, "complete": False, "evidence": ["server refused"]}
+        self.assertFalse(failure_is_supported(state, observation, verdict))
+        observation.text["error"] = {"text": "server refused", "region_path": ()}
+        self.assertTrue(failure_is_supported(state, observation, verdict))

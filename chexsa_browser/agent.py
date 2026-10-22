@@ -5,7 +5,7 @@ import uuid
 
 from .actions import DISCOVERY
 from .models import BrowserError, TaskResult, TaskState
-from .verification import completion_is_supported, evidence_text, is_submission, preflight_email
+from .verification import completion_is_supported, evidence_text, failure_is_supported, is_submission, preflight_email
 
 
 class BrowserAgent:
@@ -94,7 +94,9 @@ class BrowserAgent:
                         if self.state.spec.intent == "draft" and "recipient" in self.state.spec.inputs:
                             preflight_email(self.state, current, self.backend, self.model)
                         if completion_is_supported(self.state, current, verdict):
-                            return self._finish("success", action.arguments["response"])
+                            return self._finish("success", verdict.get("progress") or "The requested outcome was verified.")
+                        if failure_is_supported(self.state, current, verdict):
+                            return self._finish("failed", verdict.get("reason") or "The application reported a failure.")
                         observation = current
                         raise BrowserError("verification_failed", "Completion was not supported by fresh page evidence. Continue inspecting the task.")
                     target_ref = action.arguments.get("ref")
@@ -140,6 +142,8 @@ class BrowserAgent:
                             if completion_is_supported(self.state, observation, verdict):
                                 self.state.submission = "confirmed"
                                 return self._finish("success", verdict.get("progress") or "The requested submission was confirmed by the application.")
+                            if failure_is_supported(self.state, observation, verdict):
+                                return self._finish("failed", verdict.get("reason") or "The application reported a failure.")
                     if result.status != "ok":
                         raise BrowserError(result.code, result.message)
                     self.state.failures = 0
