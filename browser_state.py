@@ -65,7 +65,7 @@ class BrowserState:
         )
 
     def observe(self) -> BrowserSnapshot:
-        """Read the current page and print how long each part takes."""
+        """Read the current browser state."""
 
         page = self.get_page()
         title = page.title()
@@ -217,12 +217,12 @@ class BrowserState:
             if line.strip() and line not in new_text
         ]
 
+        if added_text:
+            sections.append("Added text:\n" + "\n".join(added_text))
         if added_controls:
             sections.append("Added controls:\n" + "\n".join(added_controls))
         if removed_controls:
             sections.append("Removed controls:\n" + "\n".join(removed_controls))
-        if added_text:
-            sections.append("Added text:\n" + "\n".join(added_text))
         if removed_text:
             sections.append("Removed text:\n" + "\n".join(removed_text))
 
