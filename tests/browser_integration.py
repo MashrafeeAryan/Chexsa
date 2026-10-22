@@ -26,6 +26,7 @@ browser.connect()
 actions = BrowserActions(
     browser.get_page,
     browser.set_page,
+    browser.get_element,
 )
 
 print("=== OBSERVATION TEST ===")
@@ -64,16 +65,23 @@ interaction_state = browser.observe()
 print("ARIA:")
 print(interaction_state.aria)
 
+message_ref = next(
+    element.ref
+    for element in interaction_state.elements
+    if element.role == "textbox" and element.name == "Message"
+)
+submit_ref = next(
+    element.ref
+    for element in interaction_state.elements
+    if element.role == "button" and element.name == "Submit"
+)
+
 actions.type_text(
-    role="textbox",
-    name="Message",
+    ref=message_ref,
     text="Hello from Chexsa",
 )
 
-actions.click(
-    role="button",
-    name="Submit",
-)
+actions.click(ref=submit_ref)
 
 typed_text = page.get_by_role("textbox", name="Message").input_value()
 click_result = page.locator("#result").inner_text()
