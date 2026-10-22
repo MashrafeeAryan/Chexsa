@@ -28,6 +28,7 @@ chexsa = "cli:main"
 chexsa-voice = "voice:main"
 
 [tool.setuptools]
+packages = ["chexsa_browser"]
 # Python files that are part of Chexsa.
 py-modules = [
     "agent",

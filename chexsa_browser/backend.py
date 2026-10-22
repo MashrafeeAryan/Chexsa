@@ -24,6 +24,7 @@ class BrowserBackend:
         self.executor = Executor(self)
         self._change_counter = None
         self.visual = VisualTargeting(self)
+        self.task_journal = None
 
     def capture_screenshot(self):
         return self.visual.capture()
@@ -76,4 +77,9 @@ class BrowserBackend:
 
     def close(self):
         self.registry.invalidate()
-        self.session.close()
+        try:
+            self.session.close()
+        finally:
+            if self.task_journal:
+                self.task_journal.close()
+                self.task_journal = None

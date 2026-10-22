@@ -3,8 +3,9 @@ It routes each request to the browser agent or desktop agent.
 Voice mode is optional and does not change the normal terminal mode."""
 
 from agent import Agent
-from browser_actions import BrowserActions
-from browser_state import BrowserState
+from chexsa_browser.agent import BrowserAgent
+from chexsa_browser.backend import BrowserBackend
+from chexsa_browser.runtime import create_browser_agent as build_browser_agent
 from desktop_actions import DesktopActions
 from desktop_state import DesktopState
 from llm import LLM
@@ -39,24 +40,10 @@ def listen_text(recognizer, source, sr) -> str | None:
         return None
 
 
-def create_browser_agent(llm: LLM) -> tuple[BrowserState, Agent]:
-    """Connect the existing browser agent for voice commands."""
+def create_browser_agent(llm: LLM) -> tuple[BrowserBackend, BrowserAgent]:
+    """Use the same browser engine as terminal mode."""
 
-    browser = BrowserState()
-    browser.connect()
-
-    actions = BrowserActions(
-        browser.get_page,
-        browser.set_page,
-    )
-
-    agent = Agent(
-        observe=browser.observe,
-        decide=llm.decide,
-        execute=actions.execute,
-    )
-
-    return browser, agent
+    return build_browser_agent(llm)
 
 
 def create_desktop_agent(llm: LLM) -> Agent:
@@ -74,7 +61,7 @@ def create_desktop_agent(llm: LLM) -> Agent:
 
 def run_command(
     command: str,
-    browser_agent: Agent,
+    browser_agent: BrowserAgent,
     desktop_agent: Agent,
     llm: LLM,
 ) -> str:

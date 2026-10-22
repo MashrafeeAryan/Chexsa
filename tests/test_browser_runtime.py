@@ -1,0 +1,22 @@
+import unittest
+from unittest.mock import MagicMock, patch
+
+from chexsa_browser.runtime import create_browser_agent
+
+
+class RuntimeTests(unittest.TestCase):
+    @patch("chexsa_browser.runtime.TaskJournal")
+    @patch("chexsa_browser.runtime.BrowserBackend")
+    def test_shared_factory_connects_controller_and_journal(self, backend_type, journal_type):
+        backend, agent = create_browser_agent(MagicMock())
+        self.assertIs(agent.backend, backend)
+        self.assertIs(agent.journal, journal_type.return_value)
+        backend.connect.assert_called_once()
+
+    @patch("chexsa_browser.runtime.TaskJournal")
+    @patch("chexsa_browser.runtime.BrowserBackend")
+    def test_connect_failure_releases_resources(self, backend_type, journal_type):
+        backend_type.return_value.connect.side_effect = RuntimeError("no Chrome")
+        with self.assertRaises(RuntimeError):
+            create_browser_agent(MagicMock())
+        backend_type.return_value.close.assert_called_once()
