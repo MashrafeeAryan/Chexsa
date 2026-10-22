@@ -83,7 +83,7 @@ Chexsa can already read many Windows buttons, menus, text boxes, and windows. De
 | Read Windows apps | 🚧 |
 | Control Windows apps | 🚧 |
 | Browser + desktop together | 🔜 |
-| Check its own work | 🔜 |
+| Check its own work | ✅ Browser verification |
 | Learn repeated tasks | 🔜 |
 
 Chexsa is still an early project, so some things will break while it grows.
@@ -178,32 +178,31 @@ GEMINI_API_KEY=your-api-key
 
 Never upload your API keys to GitHub.
 
-### 4. Start Chrome for Chexsa
-
-Open PowerShell:
+### 4. Start Chexsa
 
 ```powershell
-& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
-  --remote-debugging-port=9222 `
-  --user-data-dir="$env:TEMP\chexsa-chrome"
-```
-
-Keep that Chrome window open.
-
-Then run:
-
-```bash
 chexsa
 ```
 
-You should see:
+Chexsa connects to Chrome on port 9222. If Chrome is not available, it starts a
+separate persistent profile under `%LOCALAPPDATA%/Chexsa/chrome`. Sign into Gmail
+or other websites in that profile before asking Chexsa to use them.
 
-```text
-Chexsa
-Type 'exit' or 'quit' to close Chexsa.
+Type a task at `You >`. Ctrl+C cancels a running task. Exit with `exit` or `quit`.
+Chrome stays open when Chexsa disconnects.
 
-You >
+List saved tasks or resume after observing the current browser:
+
+```powershell
+chexsa --tasks
+chexsa --resume TASK_ID
 ```
+
+The browser engine keeps large pages locally and sends focused regions to the
+model. It supports node-bound refs, search/expansion, visual fallback, verified
+results, and recovery without automatically repeating uncertain submissions.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for settings and behavior.
+
 
 ---
 
@@ -250,13 +249,13 @@ Run the fast unit tests:
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Run the manual browser test while the special Chrome window is open:
+Run the isolated Chrome integration fixtures (no model key or real email needed):
 
 ```powershell
-python tests/browser_integration.py
+.\scripts\test_browser.ps1
 ```
 
-GitHub Actions automatically runs the fast tests on Python 3.11 and 3.12 for pushes and pull requests. Version tags such as `v0.1.0` also build release packages automatically.
+GitHub Actions runs the unit and Chrome fixture tests on Python 3.11 and 3.12 for pushes and pull requests. The fixture suite includes 20 consecutive email workflows, delayed/refused/uncertain sends, large pages, frames, and visual targeting. It uses a scripted model; live Gmail and model-provider behavior require separate account-based validation. Version tags such as `v0.1.0` also build release packages automatically.
 
 ---
 
@@ -269,7 +268,7 @@ Windows app control          🚧
         ↓
 Browser + desktop together
         ↓
-Check whether actions worked
+Check whether browser actions worked ✅
         ↓
 Recover when something fails
         ↓

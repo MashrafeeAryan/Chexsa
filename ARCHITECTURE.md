@@ -1,260 +1,160 @@
-# Chexsa Architecture
+# Chexsa architecture
 
-Chexsa has two main ways to control the computer:
+Chexsa accepts terminal or "Hey Chexsa" requests. Both use the browser engine in
+`chexsa_browser/`. Voice mode retains the existing Windows desktop route; the new
+desktop backend and Gmail API integration are future work.
 
-- **Browser agent** for websites
-- **Desktop agent** for Windows apps
-
-Voice mode listens for the request, then Chexsa decides which agent should handle it.
-
----
-
-# 1. Main Architecture
-
-```mermaid
-flowchart TD
-    User["User says a command<br/>Hey Chexsa..."] --> Voice["Voice Mode<br/>turn speech into text"]
-
-    Voice --> Router["LLM Router<br/>browser or desktop?"]
-
-    Router -->|Website / web search| Browser["Browser Agent"]
-    Router -->|Windows app / local task| Desktop["Desktop Agent"]
-
-    Browser --> Result["Chexsa response"]
-    Desktop --> Result
-```
-
-## What each part does
-
-### User
-The user says what they want.
-
-Example:
+## Browser flow
 
 ```text
-Hey Chexsa, search JavaScript tutorials on YouTube.
+Request -> plan -> focused observation -> choose action -> validate target
+             ^                                              |
+             |                                              v
+          recover <- verify fresh evidence <- observe <- execute
+                         |
+                         v
+                report a verified result
 ```
 
-or:
-
-```text
-Hey Chexsa, open Word and write an essay about AI.
-```
-
-### Voice Mode
-
-`voice.py` listens for **"Hey Chexsa"** and turns the speech into text.
-
-It does not control the browser or desktop itself.
-
-### LLM Router
-
-The LLM decides where the request should go.
-
-Examples:
-
-```text
-Search YouTube
-→ Browser
-```
-
-```text
-Open Word
-→ Desktop
-```
-
-### Browser Agent
-
-The browser agent reads Chrome, asks the LLM what browser action to take, performs it, then looks again.
-
-### Desktop Agent
-
-The desktop agent reads Windows apps and controls, asks the LLM what desktop action to take, performs it, then looks again.
-
----
-
-# 2. Browser Architecture
-
-```mermaid
-flowchart TD
-    Request["User Request"] --> State["Browser State"]
-
-    State --> Compare["Compare with previous state"]
-
-    Compare --> Inputs["Inputs sent to LLM<br/><br/>First step: compact page state<br/>Later: current controls + changes<br/>Screenshot<br/>Previous actions"]
-
-    Inputs --> LLM["LLM<br/>chooses next browser action"]
-
-    LLM --> Output["LLM Output<br/><br/>Action<br/>Arguments<br/>Done?<br/>Response"]
-
-    Output --> Actions["Browser Actions<br/><br/>Navigate<br/>Click<br/>Type<br/>Scroll<br/>Tabs<br/>Upload file"]
-
-    Actions --> Browser["Chrome"]
-
-    Browser --> State
-
-    Output -->|done = true| Result["Final response to user"]
-```
-
-## Browser input
-
-On the first step, the browser agent gives the LLM:
-
-- the user's request
-- current URL
-- page title
-- open browser tabs
-- useful ARIA controls
-- limited visible page text
-- screenshot of the visible browser area
-
-After Chexsa performs an action, it compares the new browser state with the previous state.
-
-Later steps send:
-
-- current URL and title
-- a small current control list
-- controls that were added or removed
-- visible text that was added or removed
-- screenshot
-- previous actions
-
-Chexsa can read a larger filtered state locally to find changes, but it does **not** send that whole state to the LLM. This matters on large pages such as Gmail.
-
-Example:
-
-```text
-User:
-Search JavaScript tutorials on YouTube
-
-Current page:
-youtube.com
-
-Controls:
-textbox "Search"
-button "Search"
-
-Screenshot:
-current YouTube page
-```
-
-## Browser output
-
-The LLM returns **one next browser action**.
-
-Example:
-
-```json
-{
-  "action": "type",
-  "arguments": {
-    "role": "textbox",
-    "name": "Search",
-    "text": "JavaScript tutorials",
-    "press_enter": true
-  },
-  "done": false,
-  "response": ""
-}
-```
-
-Chexsa performs that action, reads the browser again, compares it with the previous state, and repeats until the model says the task is complete.
-
----
-
-# 3. Desktop Architecture
-
-```mermaid
-flowchart TD
-    Request["User Request"] --> State["Desktop State"]
-
-    State --> Inputs["Inputs sent to LLM<br/><br/>Active window<br/>Open windows<br/>Useful controls<br/>Previous actions"]
-
-    Inputs --> LLM["LLM<br/>chooses next desktop action"]
-
-    LLM --> Output["LLM Output<br/><br/>Action<br/>Arguments<br/>Done?<br/>Response"]
-
-    Output --> Actions["Desktop Actions<br/><br/>Launch app<br/>Focus window<br/>Click control<br/>Type text<br/>Keyboard shortcuts<br/>Close window"]
-
-    Actions --> Windows["Windows App"]
-
-    Windows --> State
-
-    Output -->|done = true| Result["Final response to user"]
-```
-
-## Desktop input
-
-The desktop agent gives the LLM:
-
-- the user's request
-- currently active window
-- visible open windows
-- useful controls inside the active app
-- previous actions from the task
-
-Example:
-
-```text
-User:
-Open Word and write an essay about AI
-
-Active window:
-Document1 - Word
-
-Controls:
-Document "Document1"
-Button "Save"
-Button "Undo"
-```
-
-## Desktop output
-
-The LLM returns **one next desktop action**.
-
-Example:
-
-```json
-{
-  "action": "type_text",
-  "arguments": {
-    "control_type": "Document",
-    "name": "Document1",
-    "text": "Artificial intelligence is..."
-  },
-  "done": false,
-  "response": ""
-}
-```
-
-Chexsa performs the action, reads the desktop again, and keeps going until the task is complete.
-
----
-
-# Simple Summary
-
-The whole system is:
-
-```text
-User
- ↓
-Hey Chexsa
- ↓
-Browser or Desktop?
- ↓
-Read current state
- ↓
-LLM decides one action
- ↓
-Perform action
- ↓
-Read again
- ↓
-Repeat
- ↓
-Done
-```
-
-The browser and desktop agents use the same basic idea.
-
-The main difference is **what they see** and **what actions they are allowed to perform**.
+The browser engine is site independent. The model interprets the page; platform
+code collects state and executes validated operations. It has no Gmail selectors
+or Gmail-specific click sequence.
+
+## Responsibilities and contracts
+
+- `TaskSpec` holds the original goal, inputs, subgoals, completion criteria, and
+  draft/act intent. `TaskState` retains progress, failures, submission state, and metrics.
+- `Observation` retains the complete collected local element/text structures, tabs,
+  regions, changes, and a bounded model view. Screenshots are requested separately.
+- `ActionRequest` carries a validated action, arguments, and expected effect.
+  `ActionResult` distinguishes dispatched operations, errors, and uncertain results.
+- `TaskResult` distinguishes success, blocked, failed, uncertain, and cancelled runs.
+- The `Backend` protocol exposes observation, execution, waiting, and cleanup.
+  `BrowserModel` supplies planning, action selection, preflight, and independent
+  completion assessment through the configured Gemini or OpenAI-compatible provider.
+
+The previous top-level browser modules remain importable for compatibility and
+their existing tests. Terminal and voice browser tasks use the new package.
+The desktop agent continues using its existing `Agent` and UI Automation modules.
+
+## Exact browser targets
+
+The collector joins `Accessibility.getFullAXTree` and `DOMSnapshot.captureSnapshot`
+using `backendDOMNodeId`. Each identity includes the CDP target, frame, document,
+and browser node. Parent landmarks, names, field values, state, and action
+capabilities are retained. Password values are redacted in observations.
+
+Refs such as `e17` are issued for each observation and never reused within that
+backend instance. The registry resolves the recorded node with `DOM.resolveNode`.
+It checks document generation, attachment, capability, disabled/read-only state,
+and current accessible role/name before an element action. It never re-finds a
+different control by matching its name or occurrence.
+
+Reordering duplicate Send controls therefore does not swap their identity.
+Replacing a node, changing Send to Delete, refreshing observations, or switching
+tabs makes an old target fail explicitly. Headings provide context and do not
+automatically acquire click capabilities.
+
+## Large pages
+
+Collected elements stay local. The default model page view has a 12,000-character
+budget; this is a serialization budget, not an exact provider token count.
+It contains an overview, a selected region, complete control records, relevant
+text, and changes. Large individual fields are marked for expansion.
+
+Active dialogs and focused forms are initially prioritized. Explicit inspection
+can select another region. Regions are identified by nodes, so identical names
+do not merge. Repeated inbox rows stay inside their containing region.
+
+- `find_elements(query, cursor?)` searches the full collected local structure.
+  An empty query can enumerate it, including omitted region anchors.
+- `inspect_region(ref?, cursor?)` expands a region; `page` enumerates the page.
+  Passing a control ref reads its full name/value/context in bounded chunks.
+- Every page reports omitted records and an observation-scoped continuation cursor.
+  Old cursors are rejected. Unloaded content requires scrolling/navigation and
+  another observation.
+- Changes compare stable node identity and state, not temporary ref numbers.
+  Current controls accompany deltas; removed duplicates are not collapsed by name.
+
+Discovery operations retain the current observation and refs. Browser mutations
+are followed by fresh observation. An unsupported or closed frame is surfaced
+as an observation issue when its CDP snapshot cannot be collected.
+
+## Actions, screenshots, and waiting
+
+Supported operations include navigation/history, tabs, click/type/keyboard,
+selection, check/uncheck, scrolling, uploads, and guarded batches. Element
+interaction uses public CDP DOM/Input operations. Playwright owns browser lifecycle,
+navigation, screenshots, and keyboard/mouse helpers. No model-provided JavaScript
+is evaluated.
+
+Typing, native option selection, toggles, and uploads read back actual control
+state. Batches validate all items and targets before starting and stop on errors,
+navigation, tab changes, or invalidated targets. Enter/submission-capable batch
+operations are rejected. Waits are bounded and watch relevant page changes rather
+than demanding whole-page network idleness.
+
+`capture_screenshot` returns a screenshot ID and CSS-pixel dimensions.
+`click_coordinates(x, y, screenshot_id)` checks the observation, page, document,
+viewport, and current image before clicking. The image uses CSS pixels even on
+high-DPI displays. A click consumes its pointer authority.
+`type_focused(text, screenshot_id)` additionally requires the exact editable node
+focused by that click. Fresh screenshots support independent visual verification.
+
+Screenshots are transient by default. Set `CHEXSA_TRACE_SCREENSHOTS=1` to save
+requested screenshots next to the task journal for debugging.
+
+## Verification, recovery, and persistence
+
+The model's `finish` action is a completion proposal. The controller refreshes the
+page and asks the verifier. Text evidence must quote actual current page content;
+visual evidence must reference the fresh attached screenshot. Execution success
+alone is not task completion.
+
+Email plans retain literal recipient addresses from the user request. Before a
+submission, a separate preflight identifies the compose region and reads the
+subject/body controls and recipient value or committed chip. Values must match
+the intended draft. Draft-only requests cannot submit.
+
+Submission intent is committed to SQLite before execution. After sending, the
+controller requires new evidence; an old confirmation is insufficient. An explicit
+application refusal is a failed result. Missing evidence is uncertainty. Neither
+uncertain submissions nor interrupted submission intents are automatically replayed.
+Application acceptance does not prove delivery or that a recipient read the message.
+
+Task state, action results, recovery history, model token/call counts, and latency
+are saved locally. The default location is `%LOCALAPPDATA%/Chexsa/tasks.sqlite3`;
+`CHEXSA_STATE_DIR` overrides it. Task history can contain user-provided message data.
+Browser objects and credentials are not serialized.
+
+Defaults are 50 action steps, 600 seconds per invocation, and three consecutive
+recoverable failures. Repeated identical actions without progress cause a replan,
+then a blocked/uncertain result if repetition continues. Ctrl+C cancels a task.
+Questions preserve task state for clarification. Resume first observes and reconciles
+the current browser; a completed task returns its recorded result without executing.
+
+## Configuration and validation
+
+Existing `LLM_PROVIDER`, `LLM_MODEL`, `GEMINI_API_KEY`, `LLM_API_KEY`, and
+`LLM_BASE_URL` settings remain supported. Browser settings are:
+
+| Setting | Default |
+|---|---|
+| `CHEXSA_CDP_URL` | `http://127.0.0.1:9222` |
+| `CHEXSA_AUTO_LAUNCH` | `1` |
+| `CHEXSA_CONTEXT_CHARS` | `12000` (minimum `2000`) |
+| `CHEXSA_MAX_STEPS` | `50` |
+| `CHEXSA_TIMEOUT` | `600` seconds |
+| `CHEXSA_MAX_FAILURES` | `3` |
+| `CHEXSA_TRACE_SCREENSHOTS` | `0` |
+
+Auto launch uses a dedicated persistent Chrome profile under
+`%LOCALAPPDATA%/Chexsa/chrome`. Sign into sites in that profile once. Disconnecting
+Chexsa leaves Chrome open. This does not copy another Chrome profile's logins.
+
+Run fast tests with `python -m unittest discover -s tests -p "test_*.py" -v`.
+Run real Chrome fixtures with `scripts/test_browser.ps1`. They use dedicated tabs
+and localhost pages, including 20 consecutive email flows and explicit refused,
+delayed, and uncertain outcomes. A scripted model tests the contract without API
+keys. These tests do not establish live-model or production Gmail success rates.
+Live sending requires a separately requested task with a connected account.
