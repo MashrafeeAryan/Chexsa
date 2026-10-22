@@ -33,7 +33,8 @@ class BrowserBackend:
         before = dict(self.session.epochs)
         elements, text, issues = self.collector.collect()
         tabs = self.session.tabs()
-        if any(self.session.epochs.get(key) != value for key, value in before.items()):
+        used_targets = {e.target_id for e in elements} | {self.session.page_id}
+        if any(self.session.epochs.get(key) != before.get(key, 0) for key in used_targets):
             raise BrowserError("stale_observation", "The page navigated during observation. Observe again.")
         self.registry.bind(elements)
         self.sequence += 1
@@ -43,6 +44,7 @@ class BrowserBackend:
         result.changes = changes(self.observation, result)
         self.view.render(result)
         self.observation = result
+        self._change_counter = page.evaluate("window.__chexsaWatch?.version")
         return result
 
     def execute(self, request):
@@ -60,10 +62,12 @@ class BrowserBackend:
                 if current != last:
                     last, changed_at = current, time.monotonic()
                 if changed_at and time.monotonic() - changed_at >= .15:
+                    self._change_counter = last
                     return
                 page.wait_for_timeout(50)
             except Exception:
                 return  # Navigation/detachment will be reconciled by the next observation.
+        self._change_counter = last
 
     def close(self):
         self.registry.invalidate()

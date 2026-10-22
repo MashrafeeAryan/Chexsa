@@ -21,6 +21,7 @@ FIELDS = {
     "find_elements": ({"query": str}, {"cursor": str}),
     "inspect_region": ({}, {"ref": str, "cursor": str}),
     "list_tabs": ({}, {}), "batch": ({"actions": list}, {}),
+    "wait": ({}, {"milliseconds": int}),
 }
 DISCOVERY = {"find_elements", "inspect_region", "list_tabs"}
 BATCHABLE = {"type", "select_option", "check", "uncheck", "press_key"}
@@ -189,6 +190,11 @@ class Executor:
     def go_back(self):
         self.registry.invalidate()
         self.session.get_page().go_back(wait_until="commit", timeout=10000)
+
+    def wait(self, milliseconds=500):
+        if not 0 <= milliseconds <= 5000:
+            raise BrowserError("invalid_arguments", "Wait must be between 0 and 5000 milliseconds.")
+        self.session.get_page().wait_for_timeout(milliseconds)
 
     def new_tab(self, url="about:blank"):
         if urlparse(url).scheme not in ("http", "https", "about", "file"):

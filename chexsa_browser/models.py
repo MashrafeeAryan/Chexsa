@@ -95,6 +95,8 @@ class TaskState:
     failures: int = 0
     question: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)
+    commit_baseline: str = ""
+    email_checked: bool = False
 
 
 @dataclass

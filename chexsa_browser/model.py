@@ -104,3 +104,10 @@ class BrowserModel:
         if type(data.get("complete")) is not bool or not isinstance(data.get("progress", ""), str) or not isinstance(data.get("reason", ""), str) or not isinstance(data.get("evidence"), list) or any(not isinstance(s, str) for s in data["evidence"]):
             raise BrowserError("invalid_model_output", "Malformed verification result.")
         return data
+
+    def preflight(self, state, observation):
+        prompt = RULES + '\nCheck an email draft BEFORE sending. Identify the compose region and the actual subject/body controls from current page data.\nFormat: {"ready":true or false,"region_ref":"compose region ref","subject_ref":"field ref","body_ref":"field ref","recipient_ref":"To field ref, or empty if committed into a chip","recipient_text":"exact committed recipient text if a chip is used, otherwise empty","reason":"..."}. Return ready=false for missing or ambiguous recipients, unintended recipients, or mismatched fields.\nUSER INTENT:\n' + json.dumps({"goal": state.spec.goal, "inputs": state.spec.inputs}) + "\nCURRENT PAGE DATA:\n" + observation.context
+        data = self._ask(prompt)
+        if type(data.get("ready")) is not bool or any(not isinstance(data.get(key, ""), str) for key in ("region_ref", "subject_ref", "body_ref", "recipient_ref", "recipient_text", "reason")):
+            raise BrowserError("invalid_model_output", "Malformed submission preflight.")
+        return data
