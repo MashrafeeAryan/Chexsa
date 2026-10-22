@@ -1,8 +1,11 @@
 # Chexsa architecture
 
-Chexsa accepts terminal or "Hey Chexsa" requests. Both use the browser engine in
-`chexsa_browser/`. Voice mode retains the existing Windows desktop route; the new
-desktop backend and Gmail API integration are future work.
+Chexsa accepts terminal or "Hey Chexsa" requests. `app_runtime.AppSession` waits
+for a request, classifies it as chat, browser, or desktop, and creates only the
+resources needed by that route. Starting the terminal or microphone does not
+start Chrome. Browser tasks use `chexsa_browser/`; desktop tasks retain the
+existing Windows agent. The new desktop backend and Gmail API integration are
+future work.
 
 ## Browser flow
 
@@ -152,8 +155,19 @@ Existing `LLM_PROVIDER`, `LLM_MODEL`, `GEMINI_API_KEY`, `LLM_API_KEY`, and
 | `CHEXSA_TRACE_SCREENSHOTS` | `0` |
 
 Auto launch uses a dedicated persistent Chrome profile under
-`%LOCALAPPDATA%/Chexsa/chrome`. Sign into sites in that profile once. Disconnecting
-Chexsa leaves Chrome open. This does not copy another Chrome profile's logins.
+`%LOCALAPPDATA%/Chexsa/chrome`, with first-run and default-browser prompts disabled.
+It opens the Default profile rather than an ephemeral Guest session. Chrome
+account sync is not required; website cookies and local storage persist across
+restarts. Sites can still expire or revoke their own sessions. This does not
+copy another Chrome profile's logins. Existing Chrome can be reused when its
+configured CDP endpoint is available. Disconnecting Chexsa leaves Chrome open.
+
+Observation boundaries recover a closed selected tab, preferring an open page
+and creating a blank tab when necessary. A disconnected browser reconnects at
+that boundary. Execution remains strict: it never substitutes another tab or
+replays old refs. Startup tabs disappearing during observation are retried within
+a bounded number of attempts. Browser clarification answers stay with the task
+that asked for them rather than being routed as unrelated chat.
 
 Run fast tests with `python -m unittest discover -s tests -p "test_*.py" -v`.
 Run real Chrome fixtures with `scripts/test_browser.ps1`. They use dedicated tabs

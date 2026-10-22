@@ -85,6 +85,7 @@ Chexsa can already read many Windows buttons, menus, text boxes, and windows. De
 | Read Windows apps | 🚧 |
 | Control Windows apps | 🚧 |
 | Browser + desktop together | 🔜 |
+| Choose chat, browser, or desktop from your request | ✅ |
 | Check its own work | ✅ Browser verification |
 | Learn repeated tasks | 🔜 |
 
@@ -186,12 +187,24 @@ Never upload your API keys to GitHub.
 chexsa
 ```
 
-Chexsa connects to Chrome on port 9222. If Chrome is not available, it starts a
-separate persistent profile under `%LOCALAPPDATA%/Chexsa/chrome`. Sign into Gmail
-or other websites in that profile before asking Chexsa to use them.
+Chexsa first waits for your request. Greetings and normal questions stay in chat.
+Browser tasks connect to Chrome; Windows app tasks use the desktop agent.
+Voice mode makes the same choice after hearing your command.
+
+For a browser task, Chexsa reuses Chrome's debugging connection on port 9222.
+A normal Chrome window without that connection cannot be attached automatically.
+If needed, Chexsa starts a separate persistent profile under
+`%LOCALAPPDATA%/Chexsa/chrome` and skips Chrome's first-run setup.
+
+Chrome account sign-in/sync is not required. Sign into Gmail or other websites
+once in the Chexsa profile; their saved login state is reused across sessions,
+subject to the website's normal expiry and security checks. This profile does
+not copy logins from your usual Chrome profile and does not use Guest mode.
 
 Type a task at `You >`. Ctrl+C cancels a running task. Exit with `exit` or `quit`.
-Chrome stays open when Chexsa disconnects.
+Chrome stays open when Chexsa disconnects. If the selected tab closes, the next
+observation selects an open tab or creates a blank one. Old element refs are
+rejected, so a pending action cannot silently hit a different tab.
 
 List saved tasks or resume after observing the current browser:
 
@@ -211,7 +224,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for settings and behavior.
 
 ## 🎙️ Voice Mode
 
-Chexsa can listen for **"Hey Chexsa"** and send the rest of the sentence to the same browser agent.
+Chexsa can listen for **"Hey Chexsa"** and route the rest of the sentence to chat,
+the browser, or the Windows desktop, just like terminal mode.
 
 Install the optional voice tools:
 

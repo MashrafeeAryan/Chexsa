@@ -12,9 +12,10 @@ The main code for controlling websites is in `chexsa_browser/`.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Explains how the parts work together, including browser safety and task recovery. |
 | [pyproject.toml](pyproject.toml) | Lists the Python libraries Chexsa needs and sets up the `chexsa` and `chexsa-voice` commands. |
 | [.gitignore](.gitignore) | Keeps local secrets, installed libraries, and generated files out of GitHub. |
-| [cli.py](cli.py) | Starts terminal chat. Also lets you list saved tasks and resume one. |
-| [voice.py](voice.py) | Listens for "Hey Chexsa" and sends your request to the browser or Windows desktop. |
-| [llm.py](llm.py) | Loads your chosen AI provider and model settings. Also asks the AI how to handle desktop tasks and route voice requests. |
+| [cli.py](cli.py) | Starts terminal chat and waits for your request. Also lets you list saved tasks and resume one. |
+| [app_runtime.py](app_runtime.py) | Chooses chat, browser, or desktop for each request. Starts browser or desktop tools only when needed, for both terminal and voice mode. |
+| [voice.py](voice.py) | Listens for "Hey Chexsa" and sends your request to chat, the browser, or Windows desktop. |
+| [llm.py](llm.py) | Loads your chosen AI provider and model settings. Answers chat, chooses the right task route, and asks the AI how to handle desktop tasks. |
 | [agent.py](agent.py) | Runs the desktop task loop: read the app, ask the AI, act, and repeat. |
 | [desktop_state.py](desktop_state.py) | Reads open Windows apps and their buttons, fields, and other controls. |
 | [desktop_actions.py](desktop_actions.py) | Opens and controls Windows apps, including clicking, typing, and keyboard shortcuts. |
@@ -25,7 +26,7 @@ The main code for controlling websites is in `chexsa_browser/`.
 |---|---|
 | [__init__.py](chexsa_browser/__init__.py) | Marks this folder as a Python package. |
 | [runtime.py](chexsa_browser/runtime.py) | Builds the same browser engine for terminal chat and voice mode. |
-| [session.py](chexsa_browser/session.py) | Connects to Chrome, starts it when needed, and keeps track of tabs and embedded pages. |
+| [session.py](chexsa_browser/session.py) | Connects to Chrome, skips its first-run setup, keeps a saved profile, and recovers an open tab when the selected tab closes. |
 | [backend.py](chexsa_browser/backend.py) | Brings page reading, actions, waiting, and cleanup together. |
 | [collector.py](chexsa_browser/collector.py) | Reads the page's text, controls, positions, field values, and states. |
 | [regions.py](chexsa_browser/regions.py) | Groups controls into areas such as dialogs and forms so Chexsa can focus on the right area. |
@@ -61,7 +62,8 @@ fake pages: they do not send real email or need an email account.
 | File | What it checks |
 |---|---|
 | [tests/test_agent.py](tests/test_agent.py) | The desktop task loop, its step limit, and error handling. |
-| [tests/test_llm.py](tests/test_llm.py) | Saved provider settings still reach the browser AI, and desktop decisions and voice routing still work. Uses fake API clients. |
+| [tests/test_app_runtime.py](tests/test_app_runtime.py) | Chat and desktop requests do not open Chrome; browser requests open it only when needed, and task answers stay attached to their question. |
+| [tests/test_llm.py](tests/test_llm.py) | Provider settings, chat replies, request routing, and desktop decisions work. Uses fake API clients. |
 | [tests/test_voice.py](tests/test_voice.py) | Wake-phrase handling and sending requests to the correct browser or desktop agent. |
 | [tests/test_browser_agent.py](tests/test_browser_agent.py) | Task completion needs evidence, draft requests do not send, and repeated actions trigger recovery. |
 | [tests/test_browser_collector.py](tests/test_browser_collector.py) | Page details are read correctly, duplicate controls stay separate, and password values are hidden. |
@@ -72,10 +74,11 @@ fake pages: they do not send real email or need an email account.
 | [tests/test_browser_model.py](tests/test_browser_model.py) | AI plans and actions are checked, supplied email addresses are kept, and supported AI clients receive the right request format. |
 | [tests/test_browser_regions.py](tests/test_browser_regions.py) | Different dialogs with the same name stay separate, and forms stay inside the correct dialog. |
 | [tests/test_browser_runtime.py](tests/test_browser_runtime.py) | Starting the browser engine connects its parts correctly and cleans up after a failed connection. |
+| [tests/test_browser_session.py](tests/test_browser_session.py) | Closed-tab recovery, reconnecting, opening a missing tab, and launching a saved Chrome profile without first-run prompts. |
 | [tests/test_browser_targets.py](tests/test_browser_targets.py) | An element ID picks the correct control and fails when its page, node, or meaning changes. |
 | [tests/test_browser_validation.py](tests/test_browser_validation.py) | Invalid action arguments and unsafe batches are rejected before execution. |
 | [tests/test_browser_visual.py](tests/test_browser_visual.py) | Screenshot checks handle rendering delays and reject changed pages, images, and viewports. |
-| [tests/browser_engine_integration.py](tests/browser_engine_integration.py) | Uses real Chrome to test the browser engine from start to finish, including 20 email runs, duplicate controls, uploads, embedded pages, and screenshot targeting. |
+| [tests/browser_engine_integration.py](tests/browser_engine_integration.py) | Uses real Chrome to check 20 email runs, exact targets, uploads, embedded pages, screenshots, recovery after closing a tab, and saved site state after restarting Chrome. |
 | [tests/desktop_integration.py](tests/desktop_integration.py) | A manual Windows test that opens Word, writes text, and checks it. Leaves Word open so you can inspect it. |
 | [tests/fixtures/controls.html](tests/fixtures/controls.html) | A fake page with duplicate buttons, fields, uploads, embedded controls, and a visual-only target. |
 | [tests/fixtures/frame.html](tests/fixtures/frame.html) | A small page embedded inside another test page to check controls inside frames. |
