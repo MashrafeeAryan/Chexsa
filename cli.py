@@ -18,6 +18,7 @@ def main() -> None:
     actions = BrowserActions(
         browser.get_page,
         browser.set_page,
+        browser.get_element,
     )
 
     llm = LLM()
