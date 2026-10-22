@@ -97,7 +97,10 @@ than demanding whole-page network idleness.
 `capture_screenshot` returns a screenshot ID and CSS-pixel dimensions.
 `click_coordinates(x, y, screenshot_id)` checks the observation, page, document,
 viewport, and current image before clicking. The image uses CSS pixels even on
-high-DPI displays. A click consumes its pointer authority.
+high-DPI displays. Lossless PNG capture waits for matching rendered frames within
+a bounded number of attempts. Image comparison remains exact: animation or even
+a native control repaint can reject a visual action and require a new capture.
+Prefer node refs where available. A click consumes its pointer authority.
 `type_focused(text, screenshot_id)` additionally requires the exact editable node
 focused by that click. Fresh screenshots support independent visual verification.
 
